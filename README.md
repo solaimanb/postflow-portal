@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Facebook Topics & Posting Portal
+
+A comprehensive portal for managing Facebook topics and posting, built with Next.js, Tailwind CSS, Shadcn UI, and Firebase.
+
+## Project Overview
+
+This portal enables users to:
+
+- Fetch popular topics from Facebook based on keywords and date-time ranges
+- Display topics in a table with CSV export functionality
+- Write, post, and schedule content to multiple Facebook pages from a single interface
+- Secure authentication with email/password and session management
+
+## Technologies
+
+- **Frontend**: Next.js, Tailwind CSS, Shadcn UI
+- **Backend & Auth**: Firebase (Firestore), Session-based Authentication
+- **Integrations**: FGA and Apify APIs
 
 ## Getting Started
 
-First, run the development server:
+First, install dependencies:
+
+```bash
+npm install
+# or
+yarn install
+```
+
+Then run the development server:
 
 ```bash
 npm run dev
 # or
 yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to view the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Authentication System
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The portal uses a secure session-based authentication system:
 
-## Learn More
+- **Admin Users**: Stored in Firestore with bcrypt-hashed passwords
+- **Session Management**: Tokens stored in sessionStorage with 2-hour expiration
+- **Security Features**: Rate limiting for login attempts, automatic session expiration
+- **Default Admin**: Email: admin@portal.com (password provided separately)
 
-To learn more about Next.js, take a look at the following resources:
+To add new admin users, use the initialization script:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS="path/to/serviceAccountKey.json"
+node scripts/initAdmin.js
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Features
 
-## Deploy on Vercel
+- **Topic Analytics**: Search and view trending Facebook topics by keyword and date
+- **Content Management**: Create, schedule, and post content to Facebook pages
+- **Secure Access**: Email/password login with session management
+- **Data Export**: Download topic data in CSV format
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deployment
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The application is deployed on Firebase Hosting. Access details will be provided separately.
+
+## Documentation
+
+For detailed usage instructions, please refer to the admin documentation.
