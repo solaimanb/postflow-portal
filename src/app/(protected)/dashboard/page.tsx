@@ -22,6 +22,7 @@ import PostForm from "../../../components/PostForm";
 import FacebookPageSetup from "../../../components/FacebookPageSetup";
 import Notification from "../../../components/Notification";
 import ActorSelector from "../../components/ActorSelector";
+import CommentManager from "../../../components/CommentManager";
 
 const SCHEDULED_POST_CHECK_INTERVAL = 20000;
 const SCHEDULED_COUNT_UPDATE_INTERVAL = 5000;
@@ -60,7 +61,19 @@ const DashboardContent = ({
   handleSchedulePost,
   handleActorChange,
 }: DashboardContentProps) => {
-  const currentActorId = process.env.NEXT_PUBLIC_APIFY_ACTOR_ID || "blf62maenLRO8Rsfv";
+  const currentActorId =
+    process.env.NEXT_PUBLIC_APIFY_ACTOR_ID || "blf62maenLRO8Rsfv";
+
+  // Handle comment saved notification
+  const handleCommentSaved = useCallback(
+    (success: boolean, message: string) => {
+      setNotification({
+        type: success ? "success" : "error",
+        message,
+      });
+    },
+    [setNotification]
+  );
 
   return (
     <>
@@ -110,6 +123,16 @@ const DashboardContent = ({
             Create Post
           </button>
           <button
+            onClick={() => setActiveTab("comments")}
+            className={`${
+              activeTab === "comments"
+                ? "border-indigo-500 text-indigo-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Manage Comments
+          </button>
+          <button
             onClick={() => setActiveTab("pages")}
             className={`${
               activeTab === "pages"
@@ -148,6 +171,9 @@ const DashboardContent = ({
         />
       )}
       {activeTab === "pages" && <FacebookPageSetup />}
+      {activeTab === "comments" && (
+        <CommentManager onCommentSaved={handleCommentSaved} />
+      )}
       {activeTab === "actor" && (
         <ActorSelector
           currentActorId={currentActorId}
@@ -286,7 +312,7 @@ export default function Dashboard() {
       console.log("Searching topics with params:", params);
       const fetchedTopics = await searchTopics(params);
       setTopics(fetchedTopics);
-      
+
       if (fetchedTopics.length === 0) {
         setNotification({
           type: "info",
@@ -300,25 +326,29 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error("Error searching topics:", error);
-      
+
       let errorMessage = "Failed to search topics";
       let errorType: "error" | "info" = "error";
-      
+
       if (error instanceof Error) {
         if (error.message.includes("API key not found")) {
-          errorMessage = "API key configuration error. Please check your environment variables.";
+          errorMessage =
+            "API key configuration error. Please check your environment variables.";
         } else if (error.message.includes("requires a paid subscription")) {
           errorType = "info";
-          errorMessage = error.message + " The free trial for this actor has expired.";
+          errorMessage =
+            error.message + " The free trial for this actor has expired.";
         } else if (error.message.includes("Apify API error")) {
-          errorMessage = "Error connecting to the topic search service. Please try again later.";
+          errorMessage =
+            "Error connecting to the topic search service. Please try again later.";
         } else if (error.message.includes("failed or timed out")) {
-          errorMessage = "The topic search operation timed out. Please try again with a smaller date range.";
+          errorMessage =
+            "The topic search operation timed out. Please try again with a smaller date range.";
         } else {
           errorMessage = `${error.message}`;
         }
       }
-      
+
       setNotification({
         type: errorType,
         message: errorMessage,
@@ -399,7 +429,7 @@ export default function Dashboard() {
         type: "success",
         message: `Actor ID updated to: ${actorId}. Please update your .env.local file with this value.`,
       });
-      
+
       // Clear any previous search results since they might not be compatible with the new actor
       setTopics([]);
     } catch (error) {

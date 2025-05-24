@@ -1,4 +1,3 @@
-// User types
 export interface User {
   id: string;
   email: string;
@@ -7,7 +6,6 @@ export interface User {
   twoFactorEnabled: boolean;
 }
 
-// Facebook Topic types
 export interface FacebookTopic {
   id: string;
   topic: string;
@@ -25,7 +23,6 @@ export interface TopicSearchParams {
   endDate?: string;
 }
 
-// Facebook Post types
 export interface FacebookPage {
   id: string;
   name: string;
@@ -51,4 +48,11 @@ export interface PostScheduleParams {
   scheduledFor?: string;
   mediaUrls?: string[];
   mediaFiles?: File[];
+}
+
+export interface PostComment {
+  postLink: string;
+  comments: string[];
+  commentCount: number;
+  createdAt: string;
 }

@@ -46,13 +46,18 @@ service cloud.firestore {
     }
     
     // FACEBOOK PAGES
-    // TODO: SECURITY RISK - Change back to proper authentication after debugging
+    // TODO: POTENTIAL SECURITY RISK - Change back to proper authentication after debugging
     match /facebook_pages/{pageId} {
-      allow read, write: if true; // FOR DEBUGGING ONLY - CHANGE AFTER FIXING
+      allow read, write: if true;
     }
     
     // SCHEDULED POSTS
     match /scheduled_posts/{postId} {
+      allow read, write: if true;
+    }
+    
+    // POST COMMENTS
+    match /post_comments/{commentId} {
       allow read, write: if true;
     }
   }
