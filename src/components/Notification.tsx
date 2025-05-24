@@ -1,22 +1,29 @@
 import React from "react";
 
 interface NotificationProps {
-  type: "success" | "error";
+  type: "success" | "error" | "info";
   message: string;
   onClose: () => void;
 }
 
 export default function Notification({ type, message, onClose }: NotificationProps) {
-  return (
-    <div
-      className={`mb-4 p-4 rounded-md flex justify-between items-center ${
-        type === "success"
-          ? "bg-green-50 text-green-800 border border-green-200"
-          : "bg-red-50 text-red-800 border border-red-200"
-      }`}
-    >
-      <div className="flex items-center">
-        {type === "success" ? (
+  const getStyles = () => {
+    switch (type) {
+      case "success":
+        return "bg-green-50 text-green-800 border border-green-200";
+      case "error":
+        return "bg-red-50 text-red-800 border border-red-200";
+      case "info":
+        return "bg-blue-50 text-blue-800 border border-blue-200";
+      default:
+        return "bg-gray-50 text-gray-800 border border-gray-200";
+    }
+  };
+
+  const getIcon = () => {
+    switch (type) {
+      case "success":
+        return (
           <svg
             className="h-5 w-5 mr-2"
             fill="currentColor"
@@ -28,7 +35,9 @@ export default function Notification({ type, message, onClose }: NotificationPro
               clipRule="evenodd"
             />
           </svg>
-        ) : (
+        );
+      case "error":
+        return (
           <svg
             className="h-5 w-5 mr-2"
             fill="currentColor"
@@ -40,7 +49,32 @@ export default function Notification({ type, message, onClose }: NotificationPro
               clipRule="evenodd"
             />
           </svg>
-        )}
+        );
+      case "info":
+        return (
+          <svg
+            className="h-5 w-5 mr-2"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+          >
+            <path
+              fillRule="evenodd"
+              d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v4a1 1 0 102 0V7zm-1 8a1 1 0 100-2 1 1 0 000 2z"
+              clipRule="evenodd"
+            />
+          </svg>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div
+      className={`mb-4 p-4 rounded-md flex justify-between items-center ${getStyles()}`}
+    >
+      <div className="flex items-center">
+        {getIcon()}
         {message}
       </div>
       <button

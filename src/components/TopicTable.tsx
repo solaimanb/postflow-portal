@@ -8,6 +8,15 @@ interface TopicTableProps {
 }
 
 export default function TopicTable({ topics, onDownloadCSV }: TopicTableProps) {
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    try {
+      return new Date(dateString).toLocaleString();
+    } catch {
+      return dateString;
+    }
+  };
+
   return (
     <div className="mt-6">
       <div className="flex justify-between items-center mb-4">
@@ -45,6 +54,12 @@ export default function TopicTable({ topics, onDownloadCSV }: TopicTableProps) {
                     >
                       Popularity Score
                     </th>
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      Keywords
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -55,16 +70,36 @@ export default function TopicTable({ topics, onDownloadCSV }: TopicTableProps) {
                           {topic.topic}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(topic.date).toLocaleDateString()}
+                          {formatDate(topic.date)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {topic.popularityScore}
+                          <div className="flex items-center">
+                            <div className="w-full bg-gray-200 rounded-full h-2.5">
+                              <div 
+                                className="bg-blue-600 h-2.5 rounded-full" 
+                                style={{ width: `${topic.popularityScore}%` }}
+                              ></div>
+                            </div>
+                            <span className="ml-2">{topic.popularityScore}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <div className="flex flex-wrap gap-1">
+                            {topic.keywords.map((keyword, idx) => (
+                              <span
+                                key={`${topic.id}-keyword-${idx}`}
+                                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800"
+                              >
+                                {keyword}
+                              </span>
+                            ))}
+                          </div>
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr className="text-sm text-gray-500">
-                      <td className="px-6 py-4 whitespace-nowrap" colSpan={3}>
+                      <td className="px-6 py-4 whitespace-nowrap" colSpan={4}>
                         No data available. Try searching for topics.
                       </td>
                     </tr>

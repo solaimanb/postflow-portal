@@ -25,6 +25,8 @@ export default function TopicSearch({
       keyword,
       fromDate,
       toDate,
+      startDate: new Date(fromDate).toISOString(),
+      endDate: new Date(toDate).toISOString(),
     });
   };
 

@@ -28,34 +28,260 @@ import {
 // ======================================================
 
 /**
- * Mock implementation of Apify API for topic fetching
+ * Real implementation of Apify API for topic fetching
  */
 const fetchTopicsFromApify = async (
   params: TopicSearchParams
 ): Promise<FacebookTopic[]> => {
-  return [
-    {
-      id: "1",
-      topic: "Trending Indoor Plants",
-      date: new Date().toISOString(),
-      popularityScore: 85,
-      keywords: ["plants", "indoor", "home decor"],
-    },
-    {
-      id: "2",
-      topic: "Plant Care Tips",
-      date: new Date().toISOString(),
-      popularityScore: 72,
-      keywords: ["plants", "care", "tips"],
-    },
-    {
-      id: "3",
-      topic: `${params.keyword} Trends`,
-      date: new Date().toISOString(),
-      popularityScore: 91,
-      keywords: [params.keyword, "trends", "social media"],
-    },
-  ];
+  try {
+    const apiKey = process.env.NEXT_PUBLIC_APIFY_API_KEY;
+    if (!apiKey) {
+      throw new Error("Apify API key not found in environment variables");
+    }
+
+    const actorId =
+      process.env.NEXT_PUBLIC_APIFY_ACTOR_ID || "blf62maenLRO8Rsfv";
+    console.log(`Using Apify actor: ${actorId}`);
+
+    const runInput = prepareActorInput(actorId, params);
+    const response = await fetch(
+      `https://api.apify.com/v2/acts/${actorId}/runs?token=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ run: { input: runInput } }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Apify API error response:", JSON.stringify(errorData, null, 2));
+      
+      // Handle different error types from Apify API
+      if (errorData.error) {
+        // Case: Actor is not rented/paid
+        if (errorData.error.type === "actor-is-not-rented") {
+          const actorStoreUrl = `https://apify.com/store?search=${actorId}`;
+          throw new Error(
+            `This Apify actor requires a paid subscription. Please visit ${actorStoreUrl} to rent the actor or choose a different one.`
+          );
+        }
+        
+        // Case: Actor not found
+        if (errorData.error.type === "actor-not-found") {
+          throw new Error(
+            `The specified Apify actor (${actorId}) was not found. Please check your NEXT_PUBLIC_APIFY_ACTOR_ID environment variable.`
+          );
+        }
+        
+        // Case: Invalid input
+        if (errorData.error.type === "invalid-parameter") {
+          throw new Error(
+            `Invalid input parameters for Apify actor: ${errorData.error.message}`
+          );
+        }
+      }
+      
+      throw new Error(`Apify API error: ${JSON.stringify(errorData)}`);
+    }
+
+    const runData = await response.json();
+    const runId = runData.data.id;
+
+    let runStatus = "RUNNING";
+    const maxAttempts = 30;
+    let attempts = 0;
+
+    while (runStatus === "RUNNING" && attempts < maxAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const statusResponse = await fetch(
+        `https://api.apify.com/v2/acts/${actorId}/runs/${runId}?token=${apiKey}`
+      );
+      const statusData = await statusResponse.json();
+      runStatus = statusData.data.status;
+      attempts++;
+    }
+
+    if (runStatus !== "SUCCEEDED") {
+      throw new Error(
+        `Apify run failed or timed out with status: ${runStatus}`
+      );
+    }
+
+    const datasetResponse = await fetch(
+      `https://api.apify.com/v2/acts/${actorId}/runs/${runId}/dataset/items?token=${apiKey}`
+    );
+
+    if (!datasetResponse.ok) {
+      const errorData = await datasetResponse.json();
+      throw new Error(`Apify dataset error: ${JSON.stringify(errorData)}`);
+    }
+
+    const rawTopics = await datasetResponse.json();
+    if (!rawTopics || !Array.isArray(rawTopics) || rawTopics.length === 0) {
+      return [];
+    }
+
+    return transformActorOutput(actorId, rawTopics, params);
+  } catch (error) {
+    console.error("Error fetching topics from Apify:", error);
+    throw error;
+  }
+};
+
+/**
+ * Prepares the input for a specific Apify actor based on its ID
+ */
+const prepareActorInput = (
+  actorId: string,
+  params: TopicSearchParams
+): Record<string, unknown> => {
+  if (actorId === "blf62maenLRO8Rsfv") {
+    return {
+      keyword: params.keyword,
+      startDate:
+        params.startDate ||
+        new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+      endDate: params.endDate || new Date().toISOString(),
+      maxItems: 20,
+    };
+  }
+
+  if (actorId === "your-twitter-actor-id") {
+    return {
+      query: params.keyword,
+      fromDate: params.startDate,
+      toDate: params.endDate,
+      limit: 30,
+    };
+  }
+
+  if (actorId === "your-generic-actor-id") {
+    return {
+      searchTerm: params.keyword,
+      dateFrom: params.startDate,
+      dateTo: params.endDate,
+      platform: "facebook",
+      maxResults: 25,
+    };
+  }
+
+  return {
+    query: params.keyword,
+    startDate: params.startDate,
+    endDate: params.endDate,
+  };
+};
+
+/**
+ * Transforms the output from a specific Apify actor to match our FacebookTopic interface
+ */
+const transformActorOutput = (
+  actorId: string,
+  rawData: Record<string, unknown>[],
+  params: TopicSearchParams
+): FacebookTopic[] => {
+  if (actorId === "blf62maenLRO8Rsfv") {
+    return rawData.map((item: Record<string, unknown>, index: number) => ({
+      id: `apify-${index}-${Date.now()}`,
+      topic:
+        (item.title as string) ||
+        (item.topic as string) ||
+        `Topic ${index + 1}`,
+      date: (item.date as string) || new Date().toISOString(),
+      popularityScore:
+        (item.score as number) || Math.floor(Math.random() * 100),
+      keywords: (item.keywords as string[]) || [params.keyword],
+    }));
+  }
+
+  if (actorId === "your-twitter-actor-id") {
+    return rawData.map((item: Record<string, unknown>, index: number) => ({
+      id: `twitter-${index}-${Date.now()}`,
+      topic: (item.text as string) || `Tweet ${index + 1}`,
+      date: (item.created_at as string) || new Date().toISOString(),
+      popularityScore: calculateScore(item),
+      keywords: extractKeywords(item, params.keyword),
+    }));
+  }
+
+  if (actorId === "your-generic-actor-id") {
+    return rawData.map((item: Record<string, unknown>, index: number) => ({
+      id: `social-${index}-${Date.now()}`,
+      topic: (item.content as string) || `Post ${index + 1}`,
+      date: (item.timestamp as string) || new Date().toISOString(),
+      popularityScore: Number(item.engagement) || 50,
+      keywords: (item.tags as string[]) || [params.keyword],
+    }));
+  }
+
+  return rawData.map((item: Record<string, unknown>, index: number) => {
+    const topic =
+      (item.title as string) ||
+      (item.topic as string) ||
+      (item.text as string) ||
+      (item.content as string) ||
+      `Item ${index + 1}`;
+
+    const date =
+      (item.date as string) ||
+      (item.created_at as string) ||
+      (item.timestamp as string) ||
+      new Date().toISOString();
+
+    const score =
+      (item.score as number) ||
+      (item.popularity as number) ||
+      (item.engagement as number) ||
+      50;
+
+    const keywords = (item.keywords as string[]) ||
+      (item.tags as string[]) ||
+      (item.hashtags as string[]) || [params.keyword];
+
+    return {
+      id: `generic-${index}-${Date.now()}`,
+      topic,
+      date,
+      popularityScore: typeof score === "number" ? score : 50,
+      keywords,
+    };
+  });
+};
+
+/**
+ * Helper function to calculate a popularity score from various metrics
+ */
+const calculateScore = (item: Record<string, unknown>): number => {
+  let score = 50;
+
+  if (item.favorite_count || item.retweet_count) {
+    const favorites = Number(item.favorite_count) || 0;
+    const retweets = Number(item.retweet_count) || 0;
+    score = Math.min(Math.floor((favorites + retweets * 2) / 10), 100);
+  }
+
+  return score;
+};
+
+/**
+ * Helper function to extract keywords from content
+ */
+const extractKeywords = (
+  item: Record<string, unknown>,
+  defaultKeyword: string
+): string[] => {
+  const keywords: string[] = [defaultKeyword];
+
+  if (Array.isArray(item.hashtags)) {
+    item.hashtags.forEach((tag: unknown) => {
+      if (typeof tag === "string") {
+        keywords.push(tag);
+      }
+    });
+  }
+
+  return keywords;
 };
 
 export const searchTopics = async (
@@ -78,7 +304,8 @@ export const searchTopics = async (
     });
 
     return topics;
-  } catch {
+  } catch (error) {
+    console.error("Error in searchTopics:", error);
     throw new Error("Failed to fetch topics");
   }
 };
@@ -88,26 +315,20 @@ export const searchTopics = async (
 // ======================================================
 export const getUserPages = async (userId: string): Promise<FacebookPage[]> => {
   try {
-    console.log(`Querying Firestore for pages with userId: ${userId}`);
-    
     const pagesQuery = query(
       collection(db, "facebook_pages"),
       where("userId", "==", userId)
     );
 
-    console.log("Executing Firestore query...");
     const snapshot = await getDocs(pagesQuery);
-    console.log(`Query returned ${snapshot.docs.length} documents`);
-    
     const pages = snapshot.docs.map(
-      (doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      } as FacebookPage)
+      (doc) =>
+        ({
+          id: doc.id,
+          ...doc.data(),
+        } as FacebookPage)
     );
 
-    console.log(`Retrieved ${pages.length} Facebook pages for user`);
-    
     return pages;
   } catch (error) {
     console.error("Error fetching Facebook pages:", error);
@@ -150,9 +371,7 @@ const uploadImageToFacebook = async (
 
     const response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params,
     });
 
@@ -162,7 +381,6 @@ const uploadImageToFacebook = async (
     }
 
     const data = await response.json();
-    console.log(`Successfully uploaded image to Facebook with ID: ${data.id}`);
     return data.id;
   } catch (error) {
     console.error("Error uploading image URL to Facebook:", error);
@@ -182,7 +400,6 @@ const uploadImageFileToFacebook = async (
     const apiVersion = "v22.0";
     const url = `https://graph.facebook.com/${apiVersion}/${pageId}/photos`;
 
-    // Create FormData for file upload
     const formData = new FormData();
     formData.append("source", imageFile);
     formData.append("published", "false");
@@ -190,7 +407,6 @@ const uploadImageFileToFacebook = async (
 
     const response = await fetch(url, {
       method: "POST",
-      // No Content-Type header needed - browser will set it with the boundary
       body: formData,
     });
 
@@ -200,9 +416,6 @@ const uploadImageFileToFacebook = async (
     }
 
     const data = await response.json();
-    console.log(
-      `Successfully uploaded image file to Facebook with ID: ${data.id}`
-    );
     return data.id;
   } catch (error) {
     console.error("Error uploading image file to Facebook:", error);
@@ -218,16 +431,13 @@ const uploadMediaToFacebook = async (
   accessToken: string,
   media: string | File
 ): Promise<string> => {
-  // If media is a string (URL)
   if (typeof media === "string") {
     if (isUrl(media)) {
       return await uploadImageToFacebook(pageId, accessToken, media);
     } else {
       throw new Error("Invalid media URL format");
     }
-  }
-  // If media is a File object
-  else if (media instanceof File) {
+  } else if (media instanceof File) {
     return await uploadImageFileToFacebook(pageId, accessToken, media);
   } else {
     throw new Error(
@@ -252,7 +462,6 @@ const postToFacebookPage = async (
 
     try {
       const pageTokenUrl = `https://graph.facebook.com/${apiVersion}/${pageId}?fields=access_token&access_token=${accessToken}`;
-
       const pageTokenResponse = await fetch(pageTokenUrl);
       if (pageTokenResponse.ok) {
         const pageTokenData = await pageTokenResponse.json();
@@ -264,176 +473,167 @@ const postToFacebookPage = async (
       console.error("Error fetching page access token:", tokenError);
     }
 
-    // If there are media items, we need to handle them differently
     if (mediaItems && mediaItems.length > 0) {
       if (mediaItems.length === 1) {
         const media = mediaItems[0];
-        
-        // If the media is a URL string, try direct posting first
+
         if (typeof media === "string" && isUrl(media)) {
-          // For a single image URL, we can post directly with a link
           const url = `https://graph.facebook.com/${apiVersion}/${pageId}/feed`;
-          
           const params = new URLSearchParams();
           params.append("message", content);
           params.append("access_token", pageAccessToken);
           params.append("link", media);
-          
+
           const response = await fetch(url, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: params,
           });
-          
+
           if (response.ok) {
             const data = await response.json();
-            console.log(`Successfully posted to Facebook page ${pageId}`);
             return data.id;
           }
         }
-        
-        // If direct posting failed or it's a file, try the upload approach
+
         try {
-          // Upload the media (handles both URL strings and Files)
-          const mediaId = await uploadMediaToFacebook(pageId, pageAccessToken, media);
-          
-          // Create post with attached media
+          const mediaId = await uploadMediaToFacebook(
+            pageId,
+            pageAccessToken,
+            media
+          );
           const postUrl = `https://graph.facebook.com/${apiVersion}/${pageId}/feed`;
           const postParams = new URLSearchParams();
           postParams.append("message", content);
-          postParams.append("attached_media[0]", JSON.stringify({ media_fbid: mediaId }));
+          postParams.append(
+            "attached_media[0]",
+            JSON.stringify({ media_fbid: mediaId })
+          );
           postParams.append("access_token", pageAccessToken);
-          
+
           const postResponse = await fetch(postUrl, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: postParams,
           });
-          
+
           if (!postResponse.ok) {
             const postErrorData = await postResponse.json();
-            throw new Error(`Facebook API error: ${JSON.stringify(postErrorData)}`);
+            throw new Error(
+              `Facebook API error: ${JSON.stringify(postErrorData)}`
+            );
           }
-          
+
           const postData = await postResponse.json();
-          console.log(`Successfully posted to Facebook page ${pageId} with image`);
           return postData.id;
         } catch (uploadError) {
-          console.error("Error with image upload approach:", uploadError);
-          
-          // If original token is different, try with original token (only for URL media)
-          if (pageAccessToken !== accessToken && typeof media === "string" && isUrl(media)) {
+          if (
+            pageAccessToken !== accessToken &&
+            typeof media === "string" &&
+            isUrl(media)
+          ) {
             const url = `https://graph.facebook.com/${apiVersion}/${pageId}/feed`;
             const params = new URLSearchParams();
             params.append("message", content);
             params.append("access_token", accessToken);
             params.append("link", media);
-            
+
             const retryResponse = await fetch(url, {
               method: "POST",
-              headers: {
-                "Content-Type": "application/x-www-form-urlencoded",
-              },
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
               body: params,
             });
-            
+
             if (retryResponse.ok) {
               const retryData = await retryResponse.json();
               return retryData.id;
             } else {
               const retryErrorData = await retryResponse.json();
-              throw new Error(`Facebook API error: ${JSON.stringify(retryErrorData)}`);
+              throw new Error(
+                `Facebook API error: ${JSON.stringify(retryErrorData)}`
+              );
             }
           } else {
-            // Re-throw the original error
             throw uploadError;
           }
         }
       } else {
-        // For multiple media items, we need to upload each one separately, then create a post with all of them
         try {
-          // Upload each media item and get its media ID
           const mediaIds = [];
           for (let i = 0; i < mediaItems.length; i++) {
-            const mediaId = await uploadMediaToFacebook(pageId, pageAccessToken, mediaItems[i]);
+            const mediaId = await uploadMediaToFacebook(
+              pageId,
+              pageAccessToken,
+              mediaItems[i]
+            );
             mediaIds.push(mediaId);
           }
-          
-          // Create a post with all media items attached
+
           const postUrl = `https://graph.facebook.com/${apiVersion}/${pageId}/feed`;
           const postParams = new URLSearchParams();
           postParams.append("message", content);
           postParams.append("access_token", pageAccessToken);
-          
-          // Attach all media IDs
+
           mediaIds.forEach((id, index) => {
-            postParams.append(`attached_media[${index}]`, JSON.stringify({ media_fbid: id }));
+            postParams.append(
+              `attached_media[${index}]`,
+              JSON.stringify({ media_fbid: id })
+            );
           });
-          
+
           const postResponse = await fetch(postUrl, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: postParams,
           });
-          
+
           if (!postResponse.ok) {
             const postErrorData = await postResponse.json();
-            throw new Error(`Facebook API error: ${JSON.stringify(postErrorData)}`);
+            throw new Error(
+              `Facebook API error: ${JSON.stringify(postErrorData)}`
+            );
           }
-          
+
           const postData = await postResponse.json();
-          console.log(`Successfully posted to Facebook page ${pageId} with ${mediaIds.length} images`);
           return postData.id;
         } catch (uploadError) {
-          console.error("Error uploading multiple media items:", uploadError);
           throw uploadError;
         }
       }
     } else {
-      // Text-only post
       const url = `https://graph.facebook.com/${apiVersion}/${pageId}/feed`;
-
       const params = new URLSearchParams();
       params.append("message", content);
       params.append("access_token", pageAccessToken);
 
       const response = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: params,
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        
+
         if (pageAccessToken !== accessToken) {
           params.set("access_token", accessToken);
-          
           const retryResponse = await fetch(url, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: params,
           });
-          
+
           if (retryResponse.ok) {
             const retryData = await retryResponse.json();
             return retryData.id;
           } else {
             const retryErrorData = await retryResponse.json();
-            throw new Error(`Facebook API error: ${JSON.stringify(retryErrorData)}`);
+            throw new Error(
+              `Facebook API error: ${JSON.stringify(retryErrorData)}`
+            );
           }
         }
-        
+
         if (errorData.error && errorData.error.code === 200) {
           throw new Error(
             `Permission error: Make sure your token has pages_read_engagement and pages_manage_posts permissions for this page.`
@@ -448,7 +648,6 @@ const postToFacebookPage = async (
       }
 
       const data = await response.json();
-      console.log(`Successfully posted to Facebook page ${pageId}`);
       return data.id;
     }
   } catch (error) {
@@ -461,47 +660,38 @@ const postToFacebookPage = async (
 // ======================================================
 export const createPost = async (
   userId: string,
-  postData: FacebookPost & { mediaFiles?: File[] } // Temporary type extension until FacebookPost is updated
+  postData: FacebookPost & { mediaFiles?: File[] }
 ): Promise<string[]> => {
   try {
     const postId = `post_${Date.now()}_${Math.random()
       .toString(36)
       .substring(2, 9)}`;
-    
-    // Combine both URL strings and File objects for posting
     const allMedia: (string | File)[] = [];
-    
-    // Add URL strings if they exist
+
     if (postData.mediaUrls && postData.mediaUrls.length > 0) {
       allMedia.push(...postData.mediaUrls);
     }
-    
-    // Add File objects if they exist
+
     if (postData.mediaFiles && postData.mediaFiles.length > 0) {
       allMedia.push(...postData.mediaFiles);
     }
-    
+
     const post = {
       ...postData,
       id: postId,
       authorId: userId,
       createdAt: new Date().toISOString(),
       status: postData.scheduledFor ? "scheduled" : "published",
-      mediaUrls: postData.mediaUrls || [], // Keep this for backward compatibility
+      mediaUrls: postData.mediaUrls || [],
     };
 
     if (postData.scheduledFor) {
-      // For scheduled posts, we can only store URLs in localStorage, not File objects
-      // Files would need to be uploaded and stored as URLs before scheduling
       const scheduledPostsJson = localStorage.getItem("scheduled_posts");
       const scheduledPosts = scheduledPostsJson
         ? JSON.parse(scheduledPostsJson)
         : [];
-
       scheduledPosts.push(post);
       localStorage.setItem("scheduled_posts", JSON.stringify(scheduledPosts));
-
-      console.log(`Post scheduled for ${postData.scheduledFor}`);
       return [postId];
     }
 
@@ -548,9 +738,6 @@ export const createPost = async (
     }
 
     if (postResults.length > 0) {
-      console.log(
-        `Successfully posted to ${postResults.length}/${postData.pageIds.length} pages`
-      );
       return postResults;
     }
 
@@ -591,9 +778,6 @@ export const processScheduledPosts = async (): Promise<void> => {
       return;
     }
 
-    console.log(`Processing ${postsToPublish.length} scheduled posts`);
-    let successCount = 0;
-
     for (const post of postsToPublish) {
       for (const pageId of post.pageIds) {
         try {
@@ -601,16 +785,13 @@ export const processScheduledPosts = async (): Promise<void> => {
 
           if (pageDoc.exists()) {
             const page = { id: pageDoc.id, ...pageDoc.data() } as FacebookPage;
-
             await postToFacebookPage(
               page.pageId,
               page.accessToken,
               post.content,
               post.mediaUrls
             );
-
             post.status = "published";
-            successCount++;
           } else {
             post.status = "failed";
           }
@@ -635,10 +816,6 @@ export const processScheduledPosts = async (): Promise<void> => {
     });
 
     localStorage.setItem("scheduled_posts", JSON.stringify(filteredPosts));
-
-    if (successCount > 0) {
-      console.log(`Successfully published ${successCount} scheduled posts`);
-    }
   } catch (error) {
     throw error;
   }

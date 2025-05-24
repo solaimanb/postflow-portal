@@ -17,9 +17,11 @@ import {
   TopicSearchParams,
 } from "../../types";
 import TopicSearch from "../../../components/TopicSearch";
+import TopicTable from "../../../components/TopicTable";
 import PostForm from "../../../components/PostForm";
 import FacebookPageSetup from "../../../components/FacebookPageSetup";
 import Notification from "../../../components/Notification";
+import ActorSelector from "../../components/ActorSelector";
 
 const SCHEDULED_POST_CHECK_INTERVAL = 20000;
 const SCHEDULED_COUNT_UPDATE_INTERVAL = 5000;
@@ -31,13 +33,14 @@ interface DashboardContentProps {
   pages: FacebookPage[];
   loading: boolean;
   scheduledPostCount: number;
-  notification: { type: "success" | "error"; message: string } | null;
+  notification: { type: "success" | "error" | "info"; message: string } | null;
   setNotification: (
-    notification: { type: "success" | "error"; message: string } | null
+    notification: { type: "success" | "error" | "info"; message: string } | null
   ) => void;
   handleSearch: (params: TopicSearchParams) => Promise<void>;
   handlePostNow: (params: PostScheduleParams) => Promise<void>;
   handleSchedulePost: (params: PostScheduleParams) => Promise<void>;
+  handleActorChange: (actorId: string) => void;
 }
 
 // ======================================================
@@ -55,7 +58,10 @@ const DashboardContent = ({
   handleSearch,
   handlePostNow,
   handleSchedulePost,
+  handleActorChange,
 }: DashboardContentProps) => {
+  const currentActorId = process.env.NEXT_PUBLIC_APIFY_ACTOR_ID || "blf62maenLRO8Rsfv";
+
   return (
     <>
       {notification && (
@@ -113,6 +119,16 @@ const DashboardContent = ({
           >
             Page Setup
           </button>
+          {/* <button
+            onClick={() => setActiveTab("actor")}
+            className={`${
+              activeTab === "actor"
+                ? "border-indigo-500 text-indigo-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Actor Config
+          </button> */}
         </nav>
       </div>
 
@@ -132,6 +148,12 @@ const DashboardContent = ({
         />
       )}
       {activeTab === "pages" && <FacebookPageSetup />}
+      {activeTab === "actor" && (
+        <ActorSelector
+          currentActorId={currentActorId}
+          onActorChange={handleActorChange}
+        />
+      )}
     </>
   );
 };
@@ -147,38 +169,45 @@ const TopicsTabContent = ({
   loading,
   handleSearch,
 }: TopicsTabContentProps) => {
+  // Handle CSV export
+  const handleDownloadCSV = () => {
+    if (topics.length === 0) return;
+
+    // Prepare CSV content
+    const headers = ["Topic", "Date", "Popularity Score", "Keywords"];
+    const rows = topics.map((topic) => [
+      topic.topic,
+      new Date(topic.date).toLocaleString(),
+      topic.popularityScore.toString(),
+      topic.keywords.join(", "),
+    ]);
+
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.join(",")),
+    ].join("\n");
+
+    // Create download link
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `facebook-topics-${new Date().toISOString().split("T")[0]}.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <>
       <TopicSearch onSearch={handleSearch} isLoading={loading} />
       {topics.length > 0 && (
-        <div className="mt-6">
-          <h3 className="text-lg font-medium text-gray-900">Search Results</h3>
-          <ul className="mt-3 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {topics.map((topic: FacebookTopic) => (
-              <li
-                key={topic.id}
-                className="bg-white overflow-hidden shadow rounded-lg"
-              >
-                <div className="px-4 py-5 sm:p-6">
-                  <h4 className="text-lg font-semibold">{topic.topic}</h4>
-                  <p className="mt-1 text-sm text-gray-500">
-                    Score: {topic.popularityScore}/100
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {topic.keywords.map((keyword: string) => (
-                      <span
-                        key={keyword}
-                        className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                      >
-                        {keyword}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <TopicTable topics={topics} onDownloadCSV={handleDownloadCSV} />
       )}
     </>
   );
@@ -196,14 +225,14 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [scheduledPostCount, setScheduledPostCount] = useState(0);
   const [notification, setNotification] = useState<{
-    type: "success" | "error";
+    type: "success" | "error" | "info";
     message: string;
   } | null>(null);
   const [isClient, setIsClient] = useState(false);
   const router = useRouter();
 
   const showNotification = useCallback(
-    (type: "success" | "error", message: string) => {
+    (type: "success" | "error" | "info", message: string) => {
       setNotification({ type, message });
       setTimeout(() => {
         setNotification(null);
@@ -235,59 +264,65 @@ export default function Dashboard() {
     async (email: string) => {
       try {
         console.log("Fetching pages for user:", email);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
         const userPages = await getUserPages(email);
         console.log("Pages fetched successfully:", userPages.length);
-
-        if (userPages.length === 0) {
-          console.log("No pages found, adding a mock page for testing");
-          setPages([
-            {
-              id: "mock-page-id",
-              name: "Mock Page (For Testing)",
-              pageId: "mock-fb-page-id",
-              accessToken: "mock-token",
-            },
-          ]);
-          showNotification(
-            "error",
-            "Using mock page for testing. Add real pages in the Page Setup tab."
-          );
-        } else {
-          setPages(userPages);
-        }
+        setPages(userPages);
       } catch (error) {
         console.error("Error fetching pages:", error);
-        console.log("Error occurred, adding a mock page for testing");
-        setPages([
-          {
-            id: "mock-page-id",
-            name: "Mock Page (For Testing)",
-            pageId: "mock-fb-page-id",
-            accessToken: "mock-token",
-          },
-        ]);
-
-        showNotification(
-          "error",
-          "Failed to fetch Facebook pages. Using mock page for testing."
-        );
+        setNotification({
+          type: "error",
+          message:
+            "Failed to fetch Facebook pages. Please check your connection and try again.",
+        });
       }
     },
-    [showNotification]
+    [setNotification]
   );
 
   const handleSearch = async (params: TopicSearchParams) => {
     setLoading(true);
+    setTopics([]);
     try {
-      const results = await searchTopics(params);
-      setTopics(results);
-      console.log(
-        `Found ${results.length} topics related to "${params.keyword}"`
-      );
+      console.log("Searching topics with params:", params);
+      const fetchedTopics = await searchTopics(params);
+      setTopics(fetchedTopics);
+      
+      if (fetchedTopics.length === 0) {
+        setNotification({
+          type: "info",
+          message: "No topics found for the given search criteria.",
+        });
+      } else {
+        setNotification({
+          type: "success",
+          message: `Found ${fetchedTopics.length} topics for "${params.keyword}"`,
+        });
+      }
     } catch (error) {
       console.error("Error searching topics:", error);
-      showNotification("error", "Failed to search topics");
+      
+      let errorMessage = "Failed to search topics";
+      let errorType: "error" | "info" = "error";
+      
+      if (error instanceof Error) {
+        if (error.message.includes("API key not found")) {
+          errorMessage = "API key configuration error. Please check your environment variables.";
+        } else if (error.message.includes("requires a paid subscription")) {
+          errorType = "info";
+          errorMessage = error.message + " The free trial for this actor has expired.";
+        } else if (error.message.includes("Apify API error")) {
+          errorMessage = "Error connecting to the topic search service. Please try again later.";
+        } else if (error.message.includes("failed or timed out")) {
+          errorMessage = "The topic search operation timed out. Please try again with a smaller date range.";
+        } else {
+          errorMessage = `${error.message}`;
+        }
+      }
+      
+      setNotification({
+        type: errorType,
+        message: errorMessage,
+      });
     } finally {
       setLoading(false);
     }
@@ -353,6 +388,26 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Error scheduling post:", error);
       showNotification("error", "Failed to schedule post. Please try again.");
+    }
+  };
+
+  const handleActorChange = async (actorId: string) => {
+    try {
+      // In a real app, you would update this in a database or settings API
+      // For this demo, we'll just show a notification
+      setNotification({
+        type: "success",
+        message: `Actor ID updated to: ${actorId}. Please update your .env.local file with this value.`,
+      });
+      
+      // Clear any previous search results since they might not be compatible with the new actor
+      setTopics([]);
+    } catch (error) {
+      console.error("Error updating actor:", error);
+      setNotification({
+        type: "error",
+        message: "Failed to update actor configuration.",
+      });
     }
   };
 
@@ -430,6 +485,7 @@ export default function Dashboard() {
           handleSearch={handleSearch}
           handlePostNow={handlePostNow}
           handleSchedulePost={handleSchedulePost}
+          handleActorChange={handleActorChange}
         />
       ) : (
         <div className="flex items-center justify-center min-h-screen">

@@ -19,8 +19,10 @@ export interface FacebookTopic {
 
 export interface TopicSearchParams {
   keyword: string;
-  fromDate: string;
-  toDate: string;
+  fromDate?: string;
+  toDate?: string;
+  startDate?: string;
+  endDate?: string;
 }
 
 // Facebook Post types
