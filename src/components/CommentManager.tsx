@@ -5,66 +5,57 @@ import { useState, FormEvent, useEffect } from "react";
 import { PostComment } from "../app/types";
 import { db } from "../app/lib/firebase";
 import {
+  doc,
   collection,
   addDoc,
-  serverTimestamp,
+  updateDoc,
+  deleteDoc,
   query,
   where,
-  getDocs,
-  updateDoc,
-  doc,
-  onSnapshot,
   orderBy,
-  deleteDoc,
   limit,
   startAfter,
+  onSnapshot,
+  getDocs,
+  serverTimestamp,
 } from "firebase/firestore";
 
-// ======================================================
-// Types and Interfaces
-// ======================================================
 interface CommentManagerProps {
   onCommentSaved?: (success: boolean, message: string) => void;
 }
 
-// ======================================================
-// CommentManager Component
-// ======================================================
 export default function CommentManager({
   onCommentSaved,
 }: CommentManagerProps) {
-  // ======================================================
-  // State Management
-  // ======================================================
   const [postLink, setPostLink] = useState("");
   const [comments, setComments] = useState<string[]>([]);
   const [currentComment, setCurrentComment] = useState("");
   const [commentCount, setCommentCount] = useState(1);
+
   const [loading, setLoading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [notification, setNotification] = useState<{
     type: "success" | "error" | "info";
     message: string;
   } | null>(null);
+
   const [savedComments, setSavedComments] = useState<
     (PostComment & { id: string })[]
   >([]);
   const [loadingComments, setLoadingComments] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
   const [totalItems, setTotalItems] = useState(0);
+
   const [sortField, setSortField] = useState<"createdAt" | "commentCount">(
     "createdAt"
   );
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
-  const [isDeleting, setIsDeleting] = useState(false);
 
-  // ======================================================
-  // Effects
-  // ======================================================
   useEffect(() => {
-    // Fetch all saved comments
     const fetchComments = () => {
       setLoadingComments(true);
       const commentsRef = collection(db, "post_comments");
@@ -93,7 +84,6 @@ export default function CommentManager({
         }
       );
 
-      // Get total count for pagination
       const countQuery = query(commentsRef);
       getDocs(countQuery).then((snapshot) => {
         setTotalItems(snapshot.size);
@@ -105,7 +95,6 @@ export default function CommentManager({
     fetchComments();
   }, [itemsPerPage, sortField, sortDirection]);
 
-  // Filter comments based on search term
   const filteredComments = savedComments.filter(
     (item) =>
       item.postLink.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -114,9 +103,6 @@ export default function CommentManager({
       )
   );
 
-  // ======================================================
-  // Event Handlers
-  // ======================================================
   const handleAddComment = () => {
     if (currentComment.trim()) {
       setComments([...comments, currentComment.trim()]);
@@ -152,20 +138,16 @@ export default function CommentManager({
     setLoading(true);
 
     try {
-      // Check if a document with the same post link already exists
       const commentsRef = collection(db, "post_comments");
       const q = query(commentsRef, where("postLink", "==", postLink));
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
-        // Update existing document
         const existingDoc = querySnapshot.docs[0];
         const existingData = existingDoc.data() as PostComment;
 
-        // Merge the comments
         const updatedComments = [...existingData.comments, ...comments];
 
-        // Update the document
         await updateDoc(doc(db, "post_comments", existingDoc.id), {
           comments: updatedComments,
           commentCount: commentCount || updatedComments.length,
@@ -177,14 +159,12 @@ export default function CommentManager({
           message: "Comments updated successfully!",
         });
       } else {
-        // Create new document
         const commentData: Omit<PostComment, "createdAt"> = {
           postLink,
           comments,
           commentCount: commentCount || comments.length,
         };
 
-        // Save to Firestore
         await addDoc(collection(db, "post_comments"), {
           ...commentData,
           createdAt: serverTimestamp(),
@@ -196,13 +176,11 @@ export default function CommentManager({
         });
       }
 
-      // Reset form
       setPostLink("");
       setComments([]);
       setCurrentComment("");
       setCommentCount(1);
 
-      // Notify parent component if callback provided
       if (onCommentSaved) {
         onCommentSaved(true, "Comments saved successfully!");
       }
@@ -219,7 +197,6 @@ export default function CommentManager({
     } finally {
       setLoading(false);
 
-      // Clear notification after 5 seconds
       setTimeout(() => {
         setNotification(null);
       }, 5000);
@@ -247,31 +224,30 @@ export default function CommentManager({
     }
   };
 
-  const handleDeleteSingleComment = async (postId: string, commentIndex: number) => {
+  const handleDeleteSingleComment = async (
+    postId: string,
+    commentIndex: number
+  ) => {
     if (window.confirm("Are you sure you want to delete this comment?")) {
       setIsDeleting(true);
       try {
-        // Find the post in our local state
-        const post = savedComments.find(item => item.id === postId);
+        const post = savedComments.find((item) => item.id === postId);
         if (!post) return;
-        
-        // Create a copy of the comments array without the deleted comment
+
         const updatedComments = [...post.comments];
         updatedComments.splice(commentIndex, 1);
-        
-        // Update the document in Firestore
+
         await updateDoc(doc(db, "post_comments", postId), {
           comments: updatedComments,
           commentCount: post.commentCount > 0 ? post.commentCount - 1 : 0,
           updatedAt: serverTimestamp(),
         });
-        
+
         setNotification({
           type: "success",
           message: "Comment deleted successfully!",
         });
-        
-        // If we deleted the last comment, collapse the expanded row
+
         if (updatedComments.length === 0) {
           setExpandedRow(null);
         }
@@ -293,7 +269,6 @@ export default function CommentManager({
     const lastVisible = savedComments[savedComments.length - 1];
 
     if (pageNumber > currentPage) {
-      // Next page
       const q = query(
         commentsRef,
         orderBy(sortField, sortDirection),
@@ -314,7 +289,6 @@ export default function CommentManager({
         setLoadingComments(false);
       });
     } else if (pageNumber < currentPage) {
-      // Previous page - this is simplified, a proper implementation would need to track all pages
       const q = query(
         commentsRef,
         orderBy(sortField, sortDirection),
@@ -330,7 +304,6 @@ export default function CommentManager({
             ...(doc.data() as PostComment),
           });
         });
-        // Get the last page only
         const startIndex = (pageNumber - 1) * itemsPerPage;
         setSavedComments(
           commentsList.slice(startIndex, startIndex + itemsPerPage)
@@ -349,14 +322,12 @@ export default function CommentManager({
     }
   };
 
-  // Format date for display
   const formatDate = (
     timestamp: { toDate?: () => Date } | string | Date | null | undefined
   ) => {
     if (!timestamp) return "N/A";
 
     try {
-      // Handle Firestore timestamps
       if (
         timestamp &&
         typeof timestamp === "object" &&
@@ -366,20 +337,17 @@ export default function CommentManager({
         return timestamp.toDate().toLocaleString();
       }
 
-      // Handle string dates
       return new Date(timestamp as string | Date).toLocaleString();
     } catch {
       return "Invalid date";
     }
   };
 
-  // Truncate long text for display
   const truncateText = (text: string, maxLength: number = 30) => {
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + "...";
   };
 
-  // Calculate total pages for pagination
   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
   return (
@@ -482,8 +450,7 @@ export default function CommentManager({
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
             />
             <p className="mt-1 text-xs text-gray-500">
-              How many comments to post (defaults to the number of comments
-              you&apos;ve added)
+              How many times to post comments
             </p>
           </div>
 
@@ -668,14 +635,21 @@ export default function CommentManager({
                                 All Comments:
                               </h4>
                               {item.comments.map((comment, idx) => (
-                                <div key={idx} className="mb-2 pb-2 border-b border-gray-100 last:border-0">
+                                <div
+                                  key={idx}
+                                  className="mb-2 pb-2 border-b border-gray-100 last:border-0"
+                                >
                                   <div className="flex items-start justify-between">
                                     <div className="flex items-start">
-                                      <span className="text-gray-400 mr-2">{idx + 1}.</span>
+                                      <span className="text-gray-400 mr-2">
+                                        {idx + 1}.
+                                      </span>
                                       <p className="text-gray-700">{comment}</p>
                                     </div>
                                     <button
-                                      onClick={() => handleDeleteSingleComment(item.id, idx)}
+                                      onClick={() =>
+                                        handleDeleteSingleComment(item.id, idx)
+                                      }
                                       disabled={isDeleting}
                                       className="text-red-500 hover:text-red-700 focus:outline-none text-sm"
                                     >
@@ -791,7 +765,7 @@ export default function CommentManager({
                               }
                               className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
                                 currentPage === pageNumber
-                                  ? "z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                                  ? "z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                                   : "text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0"
                               }`}
                             >
