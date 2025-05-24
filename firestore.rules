@@ -15,24 +15,6 @@ service cloud.firestore {
              get(/databases/$(database)/documents/authorized_users/$(request.auth.token.email)).data.role == 'admin';
     }
     
-    /**
-     * Checks if the current user is authenticated
-     * @return {boolean} True if user is authenticated
-     */
-    function isAuthenticated() {
-      return request.auth != null;
-    }
-    
-    /**
-     * Checks if the current user is the owner of the document
-     * @param {string} userField - The field in the document that stores the user identifier
-     * @return {boolean} True if the authenticated user matches the document's user field
-     */
-    function isOwner(userField) {
-      return isAuthenticated() && 
-             request.auth.token.email == resource.data[userField];
-    }
-    
     //==============================================================
     // DEFAULT RULE - Restrict access to admins only
     //==============================================================
