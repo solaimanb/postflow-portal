@@ -208,26 +208,43 @@ const TopicsTabContent = ({
   const handleDownloadCSV = () => {
     if (topics.length === 0) return;
 
+    // Function to properly escape and format CSV fields
+    const escapeCSV = (field: string | number) => {
+      // Convert to string if it's a number
+      const value = String(field);
+      
+      // If the field contains commas, quotes, or newlines, we need to:
+      // 1. Wrap it in quotes
+      // 2. Double-escape any quotes inside the field
+      if (value.includes(',') || value.includes('"') || value.includes('\n') || value.includes('\r')) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value;
+    };
+
     // Prepare CSV content
     const headers = ["Content", "Page", "Date", "Likes", "Comments", "Shares", "URL"];
+    
+    // Prepare rows with proper escaping
     const rows = topics.map((topic) => [
-      topic.text || topic.topic,
-      topic.pageName || topic.relatedTopics?.[0] || 'Unknown',
-      new Date(topic.time || topic.date).toLocaleString(),
-      topic.likes || 0,
-      topic.comments || 0,
-      topic.shares || 0,
-      topic.url || '',
+      escapeCSV(topic.text || topic.topic || ''),
+      escapeCSV(topic.pageName || topic.relatedTopics?.[0] || 'Unknown'),
+      escapeCSV(new Date(topic.time || topic.date).toLocaleString()),
+      escapeCSV(topic.likes || 0),
+      escapeCSV(topic.comments || 0),
+      escapeCSV(topic.shares || 0),
+      escapeCSV(topic.url || ''),
     ]);
 
     // Combine headers and rows
     const csvContent = [
-      headers.join(","),
-      ...rows.map((row) => row.join(",")),
-    ].join("\n");
+      headers.map(escapeCSV).join(","),
+      ...rows.map((row) => row.join(","))
+    ].join("\r\n"); // Use Windows-style line endings for better compatibility
 
-    // Create download link
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    // Create download link with UTF-8 BOM for Excel compatibility
+    const BOM = "\uFEFF"; // UTF-8 BOM
+    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);

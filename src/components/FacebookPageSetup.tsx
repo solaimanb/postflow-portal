@@ -23,8 +23,6 @@ export default function FacebookPageSetup() {
     pageId: "",
     accessToken: "",
   });
-  const [userAccessToken, setUserAccessToken] = useState("");
-  const [isGeneratingToken, setIsGeneratingToken] = useState(false);
   const router = useRouter();
 
   // Load existing pages
@@ -154,47 +152,6 @@ export default function FacebookPageSetup() {
       console.error("Error deleting page:", err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGeneratePageToken = async () => {
-    if (!userAccessToken || !newPage.pageId) {
-      setError("Both User Access Token and Page ID are required");
-      return;
-    }
-
-    try {
-      setIsGeneratingToken(true);
-      setError(null);
-      
-      const apiVersion = "v22.0";
-      const pageTokenUrl = `https://graph.facebook.com/${apiVersion}/${newPage.pageId}?fields=access_token,name&access_token=${userAccessToken}`;
-      
-      const response = await fetch(pageTokenUrl);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        setError(`Failed to generate page token: ${JSON.stringify(errorData)}`);
-        return;
-      }
-      
-      const pageData = await response.json();
-      
-      if (pageData.access_token) {
-        setNewPage(prev => ({
-          ...prev,
-          accessToken: pageData.access_token,
-          name: pageData.name || prev.name
-        }));
-        setSuccess("Page access token generated successfully!");
-      } else {
-        setError("No access token found in the response");
-      }
-    } catch (err) {
-      console.error("Error generating page token:", err);
-      setError("Failed to generate page token");
-    } finally {
-      setIsGeneratingToken(false);
     }
   };
 
@@ -380,38 +337,6 @@ export default function FacebookPageSetup() {
           </p>
         </div>
 
-        {/* User Access Token Generator */}
-        <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Page Access Token Generator</h3>
-          <p className="text-xs text-gray-600 mb-3">
-            Paste your User Access Token below to automatically generate a Page Access Token
-          </p>
-          
-          <div className="flex space-x-2">
-            <div className="flex-grow">
-              <input
-                type="password"
-                value={userAccessToken}
-                onChange={(e) => setUserAccessToken(e.target.value)}
-                className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                placeholder="Paste your user access token here"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={handleGeneratePageToken}
-              disabled={isGeneratingToken || !userAccessToken || !newPage.pageId}
-              className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              {isGeneratingToken ? "Generating..." : "Generate Token"}
-            </button>
-          </div>
-          
-          <p className="mt-2 text-xs text-gray-500">
-            This will use your user token to fetch a page-specific access token.
-          </p>
-        </div>
-
         <div>
           <label
             htmlFor="accessToken"
@@ -426,7 +351,7 @@ export default function FacebookPageSetup() {
             value={newPage.accessToken}
             onChange={handleInputChange}
             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            placeholder="Enter your long-lived page access token"
+            placeholder="Enter your page access token"
           />
           <div className="mt-2 p-3 bg-gray-50 rounded-md">
             <h4 className="text-sm font-medium text-gray-700 mb-1">
@@ -445,34 +370,16 @@ export default function FacebookPageSetup() {
                 </a>
               </li>
               <li>Select your app from the dropdown menu</li>
-              <li>Click &quot;Generate Access Token&quot; and authorize</li>
-              <li>Select &quot;Page Access Token&quot; from the dropdown</li>
+              <li>Click &quot;Get Token&quot; and select &quot;Get Page Access Token&quot;</li>
               <li>Select the page you want to manage</li>
               <li>
                 Make sure to request the necessary permissions:{" "}
                 <span className="font-medium">
-                  pages_manage_posts, pages_read_engagement,
-                  pages_manage_metadata
+                  pages_manage_posts, pages_read_engagement, pages_manage_metadata
                 </span>
               </li>
-              <li>Click &quot;Generate Access Token&quot; again</li>
-              <li>
-                Use the generated token here (it will expire after an hour
-                unless you convert it to a long-lived token)
-              </li>
+              <li>Copy the generated token and paste it here</li>
             </ol>
-            <p className="text-xs text-gray-600 mt-2">
-              For a long-lived token, use the{" "}
-              <a
-                href="https://developers.facebook.com/docs/facebook-login/guides/access-tokens/get-long-lived"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                Access Token Debugger
-              </a>{" "}
-              to extend its lifetime.
-            </p>
           </div>
         </div>
 
@@ -541,41 +448,6 @@ export default function FacebookPageSetup() {
             </table>
           </div>
         )}
-      </div>
-
-      {/* Help section */}
-      <div className="mt-8 border-t border-gray-200 pt-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-2">
-          How to get your Facebook Page Access Token
-        </h3>
-        <ol className="list-decimal pl-5 space-y-2 text-sm text-gray-600">
-          <li>
-            Go to{" "}
-            <a
-              href="https://developers.facebook.com/tools/explorer/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-indigo-600 hover:text-indigo-500"
-            >
-              Graph API Explorer
-            </a>
-          </li>
-          <li>Select your app from the dropdown menu</li>
-          <li>
-            Click on &quot;Get Token&quot; and select &quot;Get Page Access
-            Token&quot;
-          </li>
-          <li>Select the page you want to manage</li>
-          <li>
-            Make sure to select the following permissions:
-            <ul className="list-disc pl-5 mt-1">
-              <li>pages_read_engagement</li>
-              <li>pages_manage_posts</li>
-            </ul>
-          </li>
-          <li>Click &quot;Generate Access Token&quot;</li>
-          <li>Copy the generated token and paste it in the form above</li>
-        </ol>
       </div>
     </div>
   );
