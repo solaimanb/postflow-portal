@@ -20,6 +20,7 @@ import {
   FacebookTopic,
   TopicSearchParams,
 } from "../../types";
+import config from "../config";
 
 // ======================================================
 // Topic Search and Management
@@ -32,38 +33,58 @@ const fetchTopicsFromApify = async (
   params: TopicSearchParams
 ): Promise<FacebookTopic[]> => {
   try {
-    const apiKey = process.env.NEXT_PUBLIC_APIFY_API_KEY;
+    const apiKey = config.apify.apiKey;
     if (!apiKey) {
-      throw new Error("Apify API key not found in environment variables");
+      throw new Error("Apify API key not found in configuration");
     }
 
     // Use the easyapi/facebook-posts-search-scraper actor
-    const actorId = "easyapi~facebook-posts-search-scraper";
+    const actorId = config.apify.actorId;
     console.log(`Using Apify actor: ${actorId}`);
 
     const runInput = prepareActorInput(actorId, params);
     console.log("Apify actor input:", JSON.stringify(runInput));
 
-    // Use the run-sync-get-dataset-items endpoint which runs the actor and returns results in one call
-    const response = await fetch("/api/apify", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        endpoint: `acts/${actorId}/run-sync-get-dataset-items`,
-        method: "POST",
-        payload: runInput,
-        token: apiKey,
-      }),
-    });
+    // In production (or static export), call Apify API directly
+    // In development, use our API route
+    const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
+    
+    // Make the appropriate API call based on environment
+    const response = isProduction 
+      ? await fetch(`https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${apiKey}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(runInput),
+        })
+      : await fetch("/api/apify", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            endpoint: `acts/${actorId}/run-sync-get-dataset-items`,
+            method: "POST",
+            payload: runInput,
+            token: apiKey,
+          }),
+        });
 
+    // Handle error responses
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Apify API error response:", JSON.stringify(errorData));
-      throw new Error(`Apify API error: ${JSON.stringify(errorData)}`);
+      try {
+        const errorData = await response.json();
+        console.error("Apify API error response:", JSON.stringify(errorData));
+        throw new Error(`Apify API error: ${JSON.stringify(errorData)}`);
+      } catch {
+        // If response is not JSON
+        const text = await response.text();
+        throw new Error(`Apify API error: ${response.status} - ${text.substring(0, 100)}`);
+      }
     }
 
+    // Get response text and parse as JSON
     const responseText = await response.text();
     console.log(`Raw dataset response: ${responseText}`);
     
@@ -513,7 +534,7 @@ const uploadVideoFileToFacebook = async (
 
     const fileData = await fileDataPromise;
 
-    // Create payload for the proxy endpoint
+    // Create payload for the API
     const payload = {
       accessToken,
       pageId,
@@ -525,7 +546,7 @@ const uploadVideoFileToFacebook = async (
     };
 
     console.log(
-      `Sending video upload request to proxy API for page ID: ${pageId}`
+      `Sending video upload request for page ID: ${pageId}`
     );
     onProgress?.(videoFile.name, 25); // Prepare to send
     
@@ -543,15 +564,64 @@ const uploadVideoFileToFacebook = async (
     const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minute timeout
 
     try {
-      // Send request to our proxy API endpoint
-      const response = await fetch("/api/facebook/upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
+      // Check if we're in production or development
+      const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
+      let response;
+
+      if (isProduction) {
+        // In production, upload directly to Facebook
+        console.log("Production environment detected - uploading directly to Facebook");
+        
+        // Extract the base64 data from the data URL
+        const base64Data = fileData.split(",")[1];
+        if (!base64Data) {
+          throw new Error("Invalid file data format");
+        }
+        
+        // Create form data for the Graph API
+        const formData = new FormData();
+        
+        // Convert base64 to Blob
+        const byteCharacters = atob(base64Data);
+        const byteArrays = [];
+        for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+          const slice = byteCharacters.slice(offset, offset + 512);
+          const byteNumbers = new Array(slice.length);
+          for (let i = 0; i < slice.length; i++) {
+            byteNumbers[i] = slice.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          byteArrays.push(byteArray);
+        }
+        const blob = new Blob(byteArrays, { type: videoFile.type });
+        
+        // Add the form data fields
+        formData.append("access_token", accessToken);
+        formData.append("source", blob, videoFile.name);
+        formData.append("title", payload.title);
+        formData.append("description", payload.description);
+        
+        // Send direct request to Facebook Graph API
+        const apiVersion = "v19.0";
+        response = await fetch(
+          `https://graph-video.facebook.com/${apiVersion}/${pageId}/videos`,
+          {
+            method: "POST",
+            body: formData,
+            signal: controller.signal,
+          }
+        );
+      } else {
+        // In development, use the local API route
+        response = await fetch("/api/facebook/upload", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+      }
 
       // Clear the timeout since the request completed
       clearTimeout(timeoutId);
@@ -575,44 +645,64 @@ const uploadVideoFileToFacebook = async (
         // Clear the Facebook progress interval
         clearInterval(fbProgressInterval);
         
-        const errorData = await response.json();
-        console.error(`Video upload proxy error: ${JSON.stringify(errorData)}`);
+        const responseText = await response.text();
+        let errorData;
+        
+        try {
+          errorData = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error("Error parsing response:", parseError, responseText);
+          errorData = { message: "Invalid response format", rawResponse: responseText };
+        }
+        
+        console.error(`Video upload error: ${JSON.stringify(errorData)}`);
 
         // Handle specific error codes from the response
-        if (errorData.details?.error) {
-          if (errorData.details.error.code === 10) {
+        if (errorData.error) {
+          if (errorData.error.code === 10) {
             const errorMsg = `Facebook application permission error: Your app does not have permission to publish videos. Make sure you have these permissions: 'pages_show_list', 'pages_read_engagement', 'pages_manage_posts', and 'publish_video'.`;
             onError?.(videoFile.name, errorMsg);
             throw new Error(errorMsg);
-          } else if (errorData.details.error.code === 190) {
+          } else if (errorData.error.code === 190) {
             const errorMsg = `Invalid or expired access token: The access token used for this page has expired or is invalid. Please reconnect your Facebook page.`;
             onError?.(videoFile.name, errorMsg);
             throw new Error(errorMsg);
-          } else if (errorData.details.error.type === "OAuthException") {
-            const errorMsg = `Facebook OAuth error: ${errorData.details.error.message}. Please check your app permissions and page access token.`;
+          } else if (errorData.error.type === "OAuthException") {
+            const errorMsg = `Facebook OAuth error: ${errorData.error.message}. Please check your app permissions and page access token.`;
             onError?.(videoFile.name, errorMsg);
             throw new Error(errorMsg);
           }
         }
 
         // Get the error message from the response if available
-        const errorMsg = errorData.message || `Facebook API error: ${JSON.stringify(errorData)}`;
+        const errorMsg = errorData.message || errorData.error?.message || `Facebook API error: ${JSON.stringify(errorData)}`;
         onError?.(videoFile.name, errorMsg);
         throw new Error(errorMsg);
       }
 
-      const data = await response.json();
+      const responseText = await response.text();
+      let data;
+      
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("Error parsing response:", parseError, responseText);
+        throw new Error("Invalid response format from the server");
+      }
+      
+      // Extract the video ID from the response
+      const videoId = isProduction ? data.id : data.videoId;
       
       // Clear the Facebook progress interval
       clearInterval(fbProgressInterval);
       
-      console.log(`Video uploaded successfully with ID: ${data.videoId}`);
+      console.log(`Video uploaded successfully with ID: ${videoId}`);
       console.log(`Note: The video upload has automatically created a post on Facebook.`);
 
       // Upload complete
       onProgress?.(videoFile.name, 100);
 
-      return data.videoId;
+      return videoId;
     } catch (fetchError: unknown) {
       // Clear the timeout in case of error
       clearTimeout(timeoutId);

@@ -23,6 +23,7 @@ import FacebookPageSetup from "../../../components/FacebookPageSetup";
 import Notification from "../../../components/Notification";
 import ActorSelector from "../../../components/ActorSelector";
 import CommentManager from "../../../components/CommentManager";
+import config from "../../../lib/config";
 
 const SCHEDULED_POST_CHECK_INTERVAL = 20000;
 const SCHEDULED_COUNT_UPDATE_INTERVAL = 5000;
@@ -69,8 +70,7 @@ const DashboardContent = ({
   handleSchedulePost,
   handleActorChange,
 }: DashboardContentProps) => {
-  const currentActorId =
-    process.env.NEXT_PUBLIC_APIFY_ACTOR_ID || "blf62maenLRO8Rsfv";
+  const currentActorId = config.apify.actorId || "blf62maenLRO8Rsfv";
 
   // Handle comment saved notification
   const handleCommentSaved = useCallback(

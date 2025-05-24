@@ -1,18 +1,5 @@
 {
   "hosting": {
-    "public": "out",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "cleanUrls": true,
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ],
     "env": {
       "NEXT_PUBLIC_FIREBASE_API_KEY": "AIzaSyC5RtPuwb0c3V0U2nl-8nR9ENYDqfFxGyU",
       "NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN": "postflow-portal.firebaseapp.com",
@@ -25,10 +12,5 @@
       "NEXT_PUBLIC_APIFY_ACTOR_ID": "easyapi~facebook-posts-search-scraper",
       "NEXT_PUBLIC_FACEBOOK_APP_ID": "1747450662646807"
     }
-  },
-  "firestore": {
-    "database": "(default)",
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
   }
 }

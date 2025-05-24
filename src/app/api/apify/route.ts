@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import config from '../../../lib/config';
 
 /**
  * API route to proxy requests to Apify API
@@ -19,14 +20,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!token) {
+    // Use token from request, fallback to config, then env var
+    const apiKey = token || config.apify.apiKey || process.env.NEXT_PUBLIC_APIFY_API_KEY;
+    
+    if (!apiKey) {
       return NextResponse.json(
-        { error: 'Missing token parameter' },
+        { error: 'No API key available' },
         { status: 400 }
       );
     }
 
-    const apiKey = token || process.env.NEXT_PUBLIC_APIFY_API_KEY;
     const baseUrl = 'https://api.apify.com/v2';
     
     // Ensure the endpoint doesn't start with a slash
