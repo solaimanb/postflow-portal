@@ -10,9 +10,20 @@ export interface FacebookTopic {
   id: string;
   topic: string;
   date: string;
-  popularityScore: number;
   keywords: string[];
   relatedTopics?: string[];
+  likes?: number;
+  comments?: number;
+  shares?: string | number;
+  url?: string;
+  text?: string;
+  pageName?: string;
+  postId?: string;
+  facebookId?: string;
+  postFacebookId?: string;
+  timestamp?: number;
+  time?: string;
+  topLevelUrl?: string;
 }
 
 export interface TopicSearchParams {
@@ -21,6 +32,8 @@ export interface TopicSearchParams {
   toDate?: string;
   startDate?: string;
   endDate?: string;
+  maxItems?: number;
+  language?: string;
 }
 
 export interface FacebookPage {

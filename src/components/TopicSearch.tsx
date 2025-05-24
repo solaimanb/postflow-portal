@@ -10,10 +10,11 @@ const TopicSearch: React.FC<TopicSearchProps> = ({ onSearch, isLoading }) => {
   const [keyword, setKeyword] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [maxItems, setMaxItems] = useState("20");
   const [showActorInfo, setShowActorInfo] = useState(false);
   
-  const actorId = process.env.NEXT_PUBLIC_APIFY_ACTOR_ID || "blf62maenLRO8Rsfv";
-  const actorStoreUrl = `https://apify.com/store?search=${actorId}`;
+  const actorId = "easyapi~facebook-posts-search-scraper";
+  const actorStoreUrl = `https://apify.com/easyapi/facebook-posts-search-scraper`;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,6 +24,7 @@ const TopicSearch: React.FC<TopicSearchProps> = ({ onSearch, isLoading }) => {
       keyword: keyword.trim(),
       startDate: startDate || undefined,
       endDate: endDate || undefined,
+      maxItems: parseInt(maxItems) || 20,
     });
   };
 
@@ -106,6 +108,24 @@ const TopicSearch: React.FC<TopicSearchProps> = ({ onSearch, isLoading }) => {
               id="endDate"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
+              className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+            />
+          </div>
+          
+          <div>
+            <label
+              htmlFor="maxItems"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Max Results
+            </label>
+            <input
+              type="number"
+              id="maxItems"
+              min="1"
+              max="100"
+              value={maxItems}
+              onChange={(e) => setMaxItems(e.target.value)}
               className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
             />
           </div>

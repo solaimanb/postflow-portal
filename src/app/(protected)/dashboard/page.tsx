@@ -209,12 +209,15 @@ const TopicsTabContent = ({
     if (topics.length === 0) return;
 
     // Prepare CSV content
-    const headers = ["Topic", "Date", "Popularity Score", "Keywords"];
+    const headers = ["Content", "Page", "Date", "Likes", "Comments", "Shares", "URL"];
     const rows = topics.map((topic) => [
-      topic.topic,
-      new Date(topic.date).toLocaleString(),
-      topic.popularityScore.toString(),
-      topic.keywords.join(", "),
+      topic.text || topic.topic,
+      topic.pageName || topic.relatedTopics?.[0] || 'Unknown',
+      new Date(topic.time || topic.date).toLocaleString(),
+      topic.likes || 0,
+      topic.comments || 0,
+      topic.shares || 0,
+      topic.url || '',
     ]);
 
     // Combine headers and rows

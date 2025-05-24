@@ -8,8 +8,6 @@
 import { db } from "../firebase";
 import {
   collection,
-  addDoc,
-  Timestamp,
   query,
   where,
   getDocs,
@@ -39,92 +37,54 @@ const fetchTopicsFromApify = async (
       throw new Error("Apify API key not found in environment variables");
     }
 
-    const actorId =
-      process.env.NEXT_PUBLIC_APIFY_ACTOR_ID || "blf62maenLRO8Rsfv";
+    // Use the easyapi/facebook-posts-search-scraper actor
+    const actorId = "easyapi~facebook-posts-search-scraper";
     console.log(`Using Apify actor: ${actorId}`);
 
     const runInput = prepareActorInput(actorId, params);
-    const response = await fetch(
-      `https://api.apify.com/v2/acts/${actorId}/runs?token=${apiKey}`,
-      {
+    console.log("Apify actor input:", JSON.stringify(runInput));
+
+    // Use the run-sync-get-dataset-items endpoint which runs the actor and returns results in one call
+    const response = await fetch("/api/apify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        endpoint: `acts/${actorId}/run-sync-get-dataset-items`,
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ run: { input: runInput } }),
-      }
-    );
+        payload: runInput,
+        token: apiKey,
+      }),
+    });
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error(
-        "Apify API error response:",
-        JSON.stringify(errorData, null, 2)
-      );
-
-      // Handle different error types from Apify API
-      if (errorData.error) {
-        // Case: Actor is not rented/paid
-        if (errorData.error.type === "actor-is-not-rented") {
-          const actorStoreUrl = `https://apify.com/store?search=${actorId}`;
-          throw new Error(
-            `This Apify actor requires a paid subscription. Please visit ${actorStoreUrl} to rent the actor or choose a different one.`
-          );
-        }
-
-        // Case: Actor not found
-        if (errorData.error.type === "actor-not-found") {
-          throw new Error(
-            `The specified Apify actor (${actorId}) was not found. Please check your NEXT_PUBLIC_APIFY_ACTOR_ID environment variable.`
-          );
-        }
-
-        // Case: Invalid input
-        if (errorData.error.type === "invalid-parameter") {
-          throw new Error(
-            `Invalid input parameters for Apify actor: ${errorData.error.message}`
-          );
-        }
-      }
-
+      console.error("Apify API error response:", JSON.stringify(errorData));
       throw new Error(`Apify API error: ${JSON.stringify(errorData)}`);
     }
 
-    const runData = await response.json();
-    const runId = runData.data.id;
-
-    let runStatus = "RUNNING";
-    const maxAttempts = 30;
-    let attempts = 0;
-
-    while (runStatus === "RUNNING" && attempts < maxAttempts) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      const statusResponse = await fetch(
-        `https://api.apify.com/v2/acts/${actorId}/runs/${runId}?token=${apiKey}`
-      );
-      const statusData = await statusResponse.json();
-      runStatus = statusData.data.status;
-      attempts++;
+    const responseText = await response.text();
+    console.log(`Raw dataset response: ${responseText}`);
+    
+    let rawTopics;
+    try {
+      rawTopics = JSON.parse(responseText);
+    } catch (e) {
+      console.error("Error parsing dataset response as JSON:", e);
+      console.log("Full response text:", responseText);
+      throw new Error("Failed to parse dataset response as JSON");
     }
 
-    if (runStatus !== "SUCCEEDED") {
-      throw new Error(
-        `Apify run failed or timed out with status: ${runStatus}`
-      );
-    }
-
-    const datasetResponse = await fetch(
-      `https://api.apify.com/v2/acts/${actorId}/runs/${runId}/dataset/items?token=${apiKey}`
-    );
-
-    if (!datasetResponse.ok) {
-      const errorData = await datasetResponse.json();
-      throw new Error(`Apify dataset error: ${JSON.stringify(errorData)}`);
-    }
-
-    const rawTopics = await datasetResponse.json();
     if (!rawTopics || !Array.isArray(rawTopics) || rawTopics.length === 0) {
+      console.log("No topics found in Apify dataset or invalid data format");
+      console.log("Raw response:", JSON.stringify(rawTopics));
       return [];
     }
 
+    console.log(`Retrieved ${rawTopics.length} items from Apify dataset`);
+    console.log("Sample item:", JSON.stringify(rawTopics[0]).substring(0, 200) + "...");
+    
     return transformActorOutput(actorId, rawTopics, params);
   } catch (error) {
     console.error("Error fetching topics from Apify:", error);
@@ -139,6 +99,37 @@ const prepareActorInput = (
   actorId: string,
   params: TopicSearchParams
 ): Record<string, unknown> => {
+  // For facebook-posts-scraper actor
+  if (actorId.includes("facebook-posts-scraper") || 
+      actorId.includes("facebook-scraper")) {
+    return {
+      // Use search term as a page name to scrape
+      startUrls: [
+        {
+          "url": `https://www.facebook.com/search/posts/?q=${encodeURIComponent(params.keyword)}`
+        }
+      ],
+      maxPosts: params.maxItems || 20,
+      commentsMode: "NONE",
+      reactionsMode: "NONE",
+      language: params.language || "en",
+      maxComments: 0,
+      maxPostDate: params.endDate || undefined,
+      minPostDate: params.startDate || undefined,
+      proxyConfiguration: {
+        useApifyProxy: true
+      }
+    };
+  }
+  
+  // Handle both slash and tilde formats for easyapi actor
+  if (actorId.includes("facebook-posts-search-scraper")) {
+    return {
+      searchQuery: params.keyword,
+      maxPosts: params.maxItems || 20
+    };
+  }
+
   if (actorId === "blf62maenLRO8Rsfv") {
     return {
       keyword: params.keyword,
@@ -153,24 +144,13 @@ const prepareActorInput = (
   if (actorId === "your-twitter-actor-id") {
     return {
       query: params.keyword,
-      fromDate: params.startDate,
-      toDate: params.endDate,
-      limit: 30,
+      maxTweets: 20,
     };
   }
 
-  if (actorId === "your-generic-actor-id") {
-    return {
-      searchTerm: params.keyword,
-      dateFrom: params.startDate,
-      dateTo: params.endDate,
-      platform: "facebook",
-      maxResults: 25,
-    };
-  }
-
+  // Default input format
   return {
-    query: params.keyword,
+    keyword: params.keyword,
     startDate: params.startDate,
     endDate: params.endDate,
   };
@@ -184,6 +164,92 @@ const transformActorOutput = (
   rawData: Record<string, unknown>[],
   params: TopicSearchParams
 ): FacebookTopic[] => {
+  // For facebook-posts-scraper actor
+  if (actorId.includes("facebook-posts-scraper") || 
+      actorId.includes("facebook-scraper")) {
+    return rawData.map((item: Record<string, unknown>, index: number) => {
+      // Extract post text
+      const text = item.text as string || '';
+      
+      // Extract date
+      const postDate = item.postDate as string || 
+                     item.date as string || 
+                     new Date().toISOString();
+      
+      // Extract engagement metrics
+      const likes = typeof item.likesCount === 'number' ? item.likesCount : 0;
+      const comments = typeof item.commentsCount === 'number' ? item.commentsCount : 0;
+      const shares = typeof item.sharesCount === 'number' ? item.sharesCount : 0;
+      
+      // Calculate popularity score
+      const popularityScore = likes + (comments * 2) + (shares * 3);
+      
+      // Extract keywords from text
+      const extractedKeywords = text
+        .split(/\s+/)
+        .filter(word => word.length > 4)
+        .slice(0, 5);
+      
+      const keywords = [params.keyword, ...extractedKeywords]
+        .filter((v, i, a) => a.indexOf(v) === i);
+      
+      // Get author info
+      const authorName = 
+        (item.authorName as string) || 
+        ((item.pageInfo as Record<string, unknown>)?.name as string) || 
+        'Facebook User';
+      
+      return {
+        id: `fb-${item.postId || item.postUrl || index}-${Date.now()}`,
+        topic: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+        date: postDate,
+        popularityScore,
+        keywords,
+        relatedTopics: [authorName]
+      };
+    });
+  }
+
+  if (actorId.includes("facebook-posts-search-scraper")) {
+    return rawData.map((item: Record<string, unknown>, index: number) => {
+      // Extract engagement metrics for popularity score
+      const likes = typeof item.likes === 'number' ? item.likes : 0;
+      const comments = typeof item.comments === 'number' ? item.comments : 0;
+      const shares = typeof item.shares === 'string' 
+        ? item.shares
+        : (typeof item.shares === 'number' ? item.shares : 0);
+      
+      // Calculate popularity score based on engagement
+      const popularityScore = likes + (comments * 2) + (typeof shares === 'number' ? shares * 3 : 0);
+      
+      // Extract keywords from post text
+      const text = item.text as string || '';
+      const extractedKeywords = text
+        .split(/\s+/)
+        .filter(word => word.length > 4)
+        .slice(0, 5);
+      
+      const keywords = [params.keyword, ...extractedKeywords].filter((v, i, a) => a.indexOf(v) === i);
+      
+      return {
+        id: `fb-${item.postId || index}-${Date.now()}`,
+        topic: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+        date: item.time as string || new Date().toISOString(),
+        popularityScore,
+        keywords,
+        // Additional metadata
+        relatedTopics: [item.pageName as string || 'Facebook Page'],
+        // Include raw data fields
+        likes,
+        comments,
+        shares,
+        url: item.url as string,
+        text,
+        pageName: item.pageName as string
+      };
+    });
+  }
+
   if (actorId === "blf62maenLRO8Rsfv") {
     return rawData.map((item: Record<string, unknown>, index: number) => ({
       id: `apify-${index}-${Date.now()}`,
@@ -208,46 +274,23 @@ const transformActorOutput = (
     }));
   }
 
-  if (actorId === "your-generic-actor-id") {
-    return rawData.map((item: Record<string, unknown>, index: number) => ({
-      id: `social-${index}-${Date.now()}`,
-      topic: (item.content as string) || `Post ${index + 1}`,
-      date: (item.timestamp as string) || new Date().toISOString(),
-      popularityScore: Number(item.engagement) || 50,
-      keywords: (item.tags as string[]) || [params.keyword],
-    }));
-  }
-
+  // Default transformation for unknown actors
   return rawData.map((item: Record<string, unknown>, index: number) => {
-    const topic =
-      (item.title as string) ||
-      (item.topic as string) ||
-      (item.text as string) ||
-      (item.content as string) ||
+    const text = 
+      (item.text as string) || 
+      (item.content as string) || 
+      (item.title as string) || 
       `Item ${index + 1}`;
-
-    const date =
-      (item.date as string) ||
-      (item.created_at as string) ||
-      (item.timestamp as string) ||
-      new Date().toISOString();
-
-    const score =
-      (item.score as number) ||
-      (item.popularity as number) ||
-      (item.engagement as number) ||
-      50;
-
-    const keywords = (item.keywords as string[]) ||
-      (item.tags as string[]) ||
-      (item.hashtags as string[]) || [params.keyword];
-
+      
     return {
-      id: `generic-${index}-${Date.now()}`,
-      topic,
-      date,
-      popularityScore: typeof score === "number" ? score : 50,
-      keywords,
+      id: `topic-${index}-${Date.now()}`,
+      topic: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+      date: (item.date as string) || 
+            (item.timestamp as string) || 
+            (item.created_at as string) || 
+            new Date().toISOString(),
+      popularityScore: Math.floor(Math.random() * 100),
+      keywords: [params.keyword],
     };
   });
 };
@@ -294,17 +337,18 @@ export const searchTopics = async (
     const topics = await fetchTopicsFromApify(params);
     console.log(`Found ${topics.length} topics for keyword: ${params.keyword}`);
 
-    topics.forEach(async (topic) => {
-      try {
-        await addDoc(collection(db, "topics"), {
-          ...topic,
-          searchKeyword: params.keyword,
-          createdAt: Timestamp.now(),
-        });
-      } catch (error) {
-        console.error("Error creating topic:", error);
-      }
-    });
+    // Skip saving to Firebase due to permission issues
+    // topics.forEach(async (topic) => {
+    //   try {
+    //     await addDoc(collection(db, "topics"), {
+    //       ...topic,
+    //       searchKeyword: params.keyword,
+    //       createdAt: Timestamp.now(),
+    //     });
+    //   } catch (error) {
+    //     console.error("Error creating topic:", error);
+    //   }
+    // });
 
     return topics;
   } catch (error) {
