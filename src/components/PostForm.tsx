@@ -3,17 +3,26 @@
 import { useState, useEffect, ChangeEvent } from "react";
 import { FacebookPage, PostScheduleParams, FacebookPost } from "../app/types";
 
+// ======================================================
+// Types and Interfaces
+// ======================================================
 interface PostFormProps {
   pages: FacebookPage[];
   onPostNow: (params: PostScheduleParams) => void;
   onSchedulePost: (params: PostScheduleParams) => void;
 }
 
+// ======================================================
+// PostForm Component
+// ======================================================
 export default function PostForm({
   pages,
   onPostNow,
   onSchedulePost,
 }: PostFormProps) {
+  // ======================================================
+  // State Management
+  // ======================================================
   const [content, setContent] = useState("");
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
   const [scheduleDate, setScheduleDate] = useState("");
@@ -25,6 +34,9 @@ export default function PostForm({
   } | null>(null);
   const [scheduledPosts, setScheduledPosts] = useState<FacebookPost[]>([]);
 
+  // ======================================================
+  // Effects
+  // ======================================================
   // Load scheduled posts from localStorage
   useEffect(() => {
     const loadScheduledPosts = () => {
@@ -52,6 +64,9 @@ export default function PostForm({
     return () => clearInterval(intervalId);
   }, []);
 
+  // ======================================================
+  // Event Handlers
+  // ======================================================
   const handlePageSelection = (pageId: string) => {
     setSelectedPageIds((prevSelectedPages) => {
       if (prevSelectedPages.includes(pageId)) {
@@ -97,11 +112,7 @@ export default function PostForm({
     });
 
     // Reset form
-    setContent("");
-    setSelectedPageIds([]);
-    setScheduleDate("");
-    setMediaUrl("");
-    setMediaFiles([]);
+    resetForm();
     setPostStatus({ success: true, message: "Post published successfully!" });
 
     // Clear status after 3 seconds
@@ -133,11 +144,7 @@ export default function PostForm({
     });
 
     // Reset form
-    setContent("");
-    setSelectedPageIds([]);
-    setScheduleDate("");
-    setMediaUrl("");
-    setMediaFiles([]);
+    resetForm();
     setPostStatus({ success: true, message: "Post scheduled successfully!" });
 
     // Clear status after 3 seconds
@@ -146,6 +153,21 @@ export default function PostForm({
     }, 3000);
 
     // Refresh scheduled posts
+    refreshScheduledPosts();
+  };
+
+  // ======================================================
+  // Helper Functions
+  // ======================================================
+  const resetForm = () => {
+    setContent("");
+    setSelectedPageIds([]);
+    setScheduleDate("");
+    setMediaUrl("");
+    setMediaFiles([]);
+  };
+
+  const refreshScheduledPosts = () => {
     const postsJson = localStorage.getItem("scheduled_posts");
     if (postsJson) {
       const posts = JSON.parse(postsJson);
@@ -164,13 +186,18 @@ export default function PostForm({
     }
   };
 
+  // ======================================================
+  // Render
+  // ======================================================
   return (
     <div className="space-y-6">
+      {/* Post Creation Form */}
       <div className="bg-white shadow sm:rounded-lg p-4">
         <h3 className="text-lg font-medium text-gray-900 mb-4">
           Create New Post
         </h3>
         <div className="space-y-4">
+          {/* Post Content */}
           <div>
             <label
               htmlFor="post-content"
@@ -189,6 +216,7 @@ export default function PostForm({
             ></textarea>
           </div>
 
+          {/* Media URL */}
           <div>
             <label
               htmlFor="media-url"
@@ -205,32 +233,25 @@ export default function PostForm({
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               placeholder="https://example.com/image.jpg"
             />
-            <p className="mt-1 text-xs text-gray-500">
-              Enter a URL to an image or video to include with your post
-            </p>
           </div>
 
+          {/* Media File Upload */}
           <div>
             <label
               htmlFor="media-files"
               className="block text-sm font-medium text-gray-700"
             >
-              Upload Images (Optional)
+              Upload Media (Optional)
             </label>
             <div className="mt-1 flex items-center">
               <input
                 type="file"
                 id="media-files"
                 name="media-files"
-                accept="image/*"
-                multiple
                 onChange={handleFileChange}
-                className="block w-full text-sm text-gray-500
-                  file:mr-4 file:py-2 file:px-4
-                  file:rounded-md file:border-0
-                  file:text-sm file:font-semibold
-                  file:bg-blue-50 file:text-blue-700
-                  hover:file:bg-blue-100"
+                accept="image/*,video/*"
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                multiple
               />
               {mediaFiles.length > 0 && (
                 <button
@@ -238,32 +259,26 @@ export default function PostForm({
                   onClick={handleClearFiles}
                   className="ml-2 inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-red-700 bg-red-100 hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                 >
-                  Clear all
+                  Clear
                 </button>
               )}
             </div>
-            <p className="mt-1 text-xs text-gray-500">
-              <strong>You can select multiple images</strong> - Click
-              &quot;Browse&quot; again to add more images
-            </p>
+
+            {/* Media Files Preview */}
             {mediaFiles.length > 0 && (
               <div className="mt-2">
-                <p className="text-sm text-gray-700">
-                  {mediaFiles.length} file(s) selected
-                </p>
-                <ul className="mt-1 text-xs text-gray-500 max-h-32 overflow-y-auto">
+                <p className="text-sm text-gray-500 mb-2">Selected files:</p>
+                <ul className="space-y-1">
                   {mediaFiles.map((file, index) => (
                     <li
-                      key={index}
-                      className="flex items-center justify-between"
+                      key={`${file.name}-${index}`}
+                      className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 px-2 py-1 rounded"
                     >
-                      <span>
-                        {file.name} ({Math.round(file.size / 1024)} KB)
-                      </span>
+                      <span className="truncate max-w-xs">{file.name}</span>
                       <button
                         type="button"
                         onClick={() => handleRemoveFile(index)}
-                        className="text-red-500 hover:text-red-700"
+                        className="ml-2 text-red-500 hover:text-red-700"
                       >
                         Remove
                       </button>
@@ -272,80 +287,86 @@ export default function PostForm({
                 </ul>
               </div>
             )}
-            {mediaFiles.length > 0 && mediaUrl && (
-              <p className="mt-1 text-xs text-amber-600 font-medium">
-                Both URL and files selected. Both will be included in your post.
-              </p>
-            )}
           </div>
 
+          {/* Page Selection */}
           <div>
             <label className="block text-sm font-medium text-gray-700">
               Select Pages
             </label>
-            <div className="mt-1 space-y-2">
-              {pages.map((page) => (
-                <div key={page.id} className="flex items-center">
-                  <input
-                    id={`page-${page.id}`}
-                    name={`page-${page.id}`}
-                    type="checkbox"
-                    checked={selectedPageIds.includes(page.id)}
-                    onChange={() => handlePageSelection(page.id)}
-                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <label
-                    htmlFor={`page-${page.id}`}
-                    className="ml-2 block text-sm text-gray-900"
-                  >
-                    {page.name}
-                  </label>
-                </div>
-              ))}
+            <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {pages.length > 0 ? (
+                pages.map((page) => (
+                  <div key={page.id} className="flex items-center">
+                    <input
+                      id={`page-${page.id}`}
+                      name={`page-${page.id}`}
+                      type="checkbox"
+                      checked={selectedPageIds.includes(page.id)}
+                      onChange={() => handlePageSelection(page.id)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label
+                      htmlFor={`page-${page.id}`}
+                      className="ml-2 block text-sm text-gray-900"
+                    >
+                      {page.name}
+                    </label>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500">
+                  No Facebook pages found. Please add a page in the Page Setup
+                  tab.
+                </p>
+              )}
             </div>
           </div>
 
+          {/* Schedule Date */}
           <div>
             <label
-              htmlFor="schedule"
+              htmlFor="schedule-date"
               className="block text-sm font-medium text-gray-700"
             >
-              Schedule (Optional)
+              Schedule Date (Optional)
             </label>
             <input
               type="datetime-local"
-              name="schedule"
-              id="schedule"
+              id="schedule-date"
+              name="schedule-date"
               value={scheduleDate}
               onChange={(e) => setScheduleDate(e.target.value)}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
             />
-            {scheduleDate && mediaFiles.length > 0 && (
-              <p className="mt-1 text-xs text-red-600 font-medium">
-                Warning: Files cannot be scheduled directly. Please use URLs for
-                scheduled posts.
-              </p>
-            )}
           </div>
 
+          {/* Post Status */}
           {postStatus && (
             <div
-              className={`p-2 rounded ${
-                postStatus.success !== false
+              className={`mt-2 p-2 rounded ${
+                postStatus.success === false
+                  ? "bg-red-100 text-red-700"
+                  : postStatus.success
                   ? "bg-green-100 text-green-700"
-                  : "bg-red-100 text-red-700"
+                  : "bg-blue-100 text-blue-700"
               }`}
             >
               {postStatus.message}
             </div>
           )}
 
-          <div className="flex space-x-3">
+          {/* Action Buttons */}
+          <div className="flex justify-end space-x-3">
             <button
               type="button"
               onClick={handlePostNow}
               disabled={!content || selectedPageIds.length === 0}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
+                !content || selectedPageIds.length === 0
+                  ? "bg-gray-300 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              }`}
             >
               Post Now
             </button>
@@ -353,12 +374,13 @@ export default function PostForm({
               type="button"
               onClick={handleSchedulePost}
               disabled={
-                !content ||
-                selectedPageIds.length === 0 ||
-                !scheduleDate ||
-                mediaFiles.length > 0
+                !content || selectedPageIds.length === 0 || !scheduleDate
               }
-              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
+                !content || selectedPageIds.length === 0 || !scheduleDate
+                  ? "bg-gray-300 cursor-not-allowed"
+                  : "bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+              }`}
             >
               Schedule Post
             </button>
@@ -366,59 +388,49 @@ export default function PostForm({
         </div>
       </div>
 
+      {/* Scheduled Posts List */}
       {scheduledPosts.length > 0 && (
         <div className="bg-white shadow sm:rounded-lg p-4">
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            Upcoming Scheduled Posts
+          <h3 className="text-lg font-medium text-gray-900 mb-4">
+            Scheduled Posts
           </h3>
-          <p className="text-sm text-gray-500 mb-4">
-            Posts will be automatically published when their scheduled time
-            arrives. The system checks every 30 seconds.
-          </p>
-          <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-            <table className="min-w-full divide-y divide-gray-300">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th
                     scope="col"
-                    className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                   >
                     Content
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                   >
                     Scheduled For
                   </th>
                   <th
                     scope="col"
-                    className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                   >
                     Pages
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
+              <tbody className="bg-white divide-y divide-gray-200">
                 {scheduledPosts.map((post) => (
                   <tr key={post.id}>
-                    <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
-                      {post.content.length > 50
-                        ? `${post.content.substring(0, 50)}...`
-                        : post.content}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="max-w-xs truncate">{post.content}</div>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {post.scheduledFor
                         ? formatDate(post.scheduledFor)
                         : "N/A"}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                      {post.pageIds
-                        .map((id) => {
-                          const page = pages.find((p) => p.id === id);
-                          return page ? page.name : id;
-                        })
-                        .join(", ")}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {post.pageIds.length} page(s)
                     </td>
                   </tr>
                 ))}

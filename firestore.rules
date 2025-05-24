@@ -1,19 +1,51 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if a user is an admin
+    //==============================================================
+    // HELPER FUNCTIONS
+    //==============================================================
+    
+    /**
+     * Checks if the current user has admin privileges
+     * @return {boolean} True if user is authenticated and has admin role
+     */
     function isAdmin() {
       return request.auth != null && 
              exists(/databases/$(database)/documents/authorized_users/$(request.auth.token.email)) &&
              get(/databases/$(database)/documents/authorized_users/$(request.auth.token.email)).data.role == 'admin';
     }
     
-    // Only authenticated and authorized admin users can access any data by default
+    /**
+     * Checks if the current user is authenticated
+     * @return {boolean} True if user is authenticated
+     */
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    /**
+     * Checks if the current user is the owner of the document
+     * @param {string} userField - The field in the document that stores the user identifier
+     * @return {boolean} True if the authenticated user matches the document's user field
+     */
+    function isOwner(userField) {
+      return isAuthenticated() && 
+             request.auth.token.email == resource.data[userField];
+    }
+    
+    //==============================================================
+    // DEFAULT RULE - Restrict access to admins only
+    //==============================================================
+    
     match /{document=**} {
       allow read, write: if isAdmin();
     }
     
-    // Rules for authorized_users collection - allow reads for authentication
+    //==============================================================
+    // COLLECTION-SPECIFIC RULES
+    //==============================================================
+    
+    // AUTHORIZED USERS
     match /authorized_users/{email} {
       // Allow reading for authentication purposes
       allow read: if true;
@@ -21,22 +53,23 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
-    // Rules for topics collection
+    // TOPICS
     match /topics/{topicId} {
       allow read, write: if isAdmin();
     }
     
-    // Rules for posts collection
+    // POSTS
     match /posts/{postId} {
       allow read, write: if isAdmin();
     }
     
-    // Rules for facebook_pages collection - allow all operations without auth
+    // FACEBOOK PAGES
+    // TODO: SECURITY RISK - Change back to proper authentication after debugging
     match /facebook_pages/{pageId} {
-      allow read, write: if request.auth != null || !request.auth;
+      allow read, write: if true; // FOR DEBUGGING ONLY - CHANGE AFTER FIXING
     }
     
-    // Rules for scheduled_posts collection
+    // SCHEDULED POSTS
     match /scheduled_posts/{postId} {
       allow read, write: if true;
     }
