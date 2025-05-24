@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { loginWithEmailAndPassword, isLoggedIn } from "../lib/services/auth";
+import { loginWithEmailAndPassword, isLoggedIn } from "../../lib/services/auth";
 
 export default function Login() {
   const [email, setEmail] = useState("");

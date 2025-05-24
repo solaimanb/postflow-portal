@@ -3,25 +3,25 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { isLoggedIn, getCurrentUser } from "../../lib/services/auth";
+import { isLoggedIn, getCurrentUser } from "../../../lib/services/auth";
 import {
   searchTopics,
   getUserPages,
   createPost,
   processScheduledPosts,
-} from "../../lib/services/facebook";
+} from "../../../lib/services/facebook";
 import {
   FacebookTopic,
   FacebookPage,
   PostScheduleParams,
   TopicSearchParams,
-} from "../../types";
+} from "../../../types";
 import TopicSearch from "../../../components/TopicSearch";
 import TopicTable from "../../../components/TopicTable";
 import PostForm from "../../../components/PostForm";
 import FacebookPageSetup from "../../../components/FacebookPageSetup";
 import Notification from "../../../components/Notification";
-import ActorSelector from "../../components/ActorSelector";
+import ActorSelector from "../../../components/ActorSelector";
 import CommentManager from "../../../components/CommentManager";
 
 const SCHEDULED_POST_CHECK_INTERVAL = 20000;
@@ -34,9 +34,17 @@ interface DashboardContentProps {
   pages: FacebookPage[];
   loading: boolean;
   scheduledPostCount: number;
-  notification: { type: "success" | "error" | "info"; message: string } | null;
+  notification: { 
+    type: "success" | "error" | "info"; 
+    message: string;
+    isPermissionError?: boolean;
+  } | null;
   setNotification: (
-    notification: { type: "success" | "error" | "info"; message: string } | null
+    notification: { 
+      type: "success" | "error" | "info"; 
+      message: string;
+      isPermissionError?: boolean;
+    } | null
   ) => void;
   handleSearch: (params: TopicSearchParams) => Promise<void>;
   handlePostNow: (params: PostScheduleParams) => Promise<void>;
@@ -81,6 +89,7 @@ const DashboardContent = ({
         <Notification
           type={notification.type}
           message={notification.message}
+          isPermissionError={notification.isPermissionError}
           onClose={() => setNotification(null)}
         />
       )}
@@ -253,13 +262,14 @@ export default function Dashboard() {
   const [notification, setNotification] = useState<{
     type: "success" | "error" | "info";
     message: string;
+    isPermissionError?: boolean;
   } | null>(null);
   const [isClient, setIsClient] = useState(false);
   const router = useRouter();
 
   const showNotification = useCallback(
-    (type: "success" | "error" | "info", message: string) => {
-      setNotification({ type, message });
+    (type: "success" | "error" | "info", message: string, isPermissionError?: boolean) => {
+      setNotification({ type, message, isPermissionError });
       setTimeout(() => {
         setNotification(null);
       }, 5000);
@@ -387,7 +397,50 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error("Error publishing post:", error);
-      showNotification("error", "Failed to publish post. Please try again.");
+      
+      // Extract more specific error messages
+      let errorMessage = "Failed to publish post. Please try again.";
+      let isPermissionError = false;
+      
+      if (error instanceof Error) {
+        if (error.message.includes("Facebook application permission error")) {
+          errorMessage = "Permission error: Your Facebook app doesn't have the required permissions. Go to developers.facebook.com, navigate to App Settings > Advanced > Optional Permissions, and request 'pages_manage_posts', 'pages_read_engagement', and 'pages_manage_metadata' permissions.";
+          isPermissionError = true;
+        } else if (error.message.includes("Permission error")) {
+          errorMessage = "Token permission error: Your access token doesn't have the required permissions for posting.";
+          isPermissionError = true;
+        } else if (error.message.includes("Page not found")) {
+          errorMessage = "Page not found: The Facebook page ID may be incorrect or your app doesn't have access to it.";
+        } else if (error.message.includes("Failed to post to any pages")) {
+          try {
+            // Try to extract the detailed error from the JSON string
+            const errorMatch = error.message.match(/Failed to post to any pages: (.+)/);
+            if (errorMatch && errorMatch[1]) {
+              const errorDetails = JSON.parse(errorMatch[1]);
+              if (errorDetails && errorDetails.length > 0 && errorDetails[0].error) {
+                errorMessage = `Error posting to page: ${errorDetails[0].error}`;
+                
+                // Check if it's a permission error
+                if (errorDetails[0].error.includes("permission")) {
+                  isPermissionError = true;
+                }
+              }
+            }
+          } catch {
+            // If parsing fails, use the original error message
+            errorMessage = error.message;
+          }
+        } else {
+          errorMessage = error.message;
+          
+          // Check if it's a permission error
+          if (error.message.includes("permission") || error.message.includes("Application does not have permission")) {
+            isPermissionError = true;
+          }
+        }
+      }
+      
+      showNotification("error", errorMessage, isPermissionError);
     }
   };
 
@@ -396,6 +449,15 @@ export default function Dashboard() {
     if (!user || !params.scheduledFor) return;
 
     try {
+      // Check if there are any video files (which aren't supported for scheduling)
+      if (params.mediaFiles && params.mediaFiles.some(file => file.type.startsWith('video/'))) {
+        showNotification(
+          "error",
+          "Video files cannot be scheduled. Please use the 'Post Now' button for videos, or use image URLs for scheduled posts."
+        );
+        return;
+      }
+      
       // Note: mediaFiles are not supported for scheduled posts
       // This should be prevented in the UI already
       await createPost(user.email, {

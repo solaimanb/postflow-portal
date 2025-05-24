@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { isLoggedIn } from "../app/lib/services/auth";
+import { isLoggedIn } from "../lib/services/auth";
 
 interface ProtectedRouteProps {
   children: ReactNode;

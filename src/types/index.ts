@@ -40,6 +40,8 @@ export interface FacebookPost {
   status: "draft" | "scheduled" | "published" | "failed";
   mediaUrls?: string[];
   mediaFiles?: File[];
+  onUploadProgress?: (fileName: string, progress: number) => void;
+  onUploadError?: (fileName: string, error: string) => void;
 }
 
 export interface PostScheduleParams {
@@ -48,6 +50,8 @@ export interface PostScheduleParams {
   scheduledFor?: string;
   mediaUrls?: string[];
   mediaFiles?: File[];
+  onUploadProgress?: (fileName: string, progress: number) => void;
+  onUploadError?: (fileName: string, error: string) => void;
 }
 
 export interface PostComment {

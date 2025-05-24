@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { logoutUser } from "@/app/lib/services/auth";
+import { logoutUser } from "@/lib/services/auth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 export default function ProtectedLayout({

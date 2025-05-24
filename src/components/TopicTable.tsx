@@ -1,6 +1,6 @@
 "use client";
 
-import { FacebookTopic } from "../app/types";
+import { FacebookTopic } from "../types";
 
 interface TopicTableProps {
   topics: FacebookTopic[];

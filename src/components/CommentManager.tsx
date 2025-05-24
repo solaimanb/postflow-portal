@@ -2,8 +2,8 @@
 
 import React from "react";
 import { useState, FormEvent, useEffect } from "react";
-import { PostComment } from "../app/types";
-import { db } from "../app/lib/firebase";
+import { PostComment } from "../types";
+import { db } from "../lib/firebase";
 import {
   doc,
   collection,

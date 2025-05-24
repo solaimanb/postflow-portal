@@ -3,10 +3,11 @@ import React from "react";
 interface NotificationProps {
   type: "success" | "error" | "info";
   message: string;
+  isPermissionError?: boolean;
   onClose: () => void;
 }
 
-export default function Notification({ type, message, onClose }: NotificationProps) {
+export default function Notification({ type, message, isPermissionError, onClose }: NotificationProps) {
   const getStyles = () => {
     switch (type) {
       case "success":
@@ -69,6 +70,49 @@ export default function Notification({ type, message, onClose }: NotificationPro
     }
   };
 
+  // If it's a permission error, show a more detailed notification
+  if (isPermissionError && type === "error") {
+    return (
+      <div className="mb-4 p-4 rounded-md bg-red-50 border border-red-200">
+        <div className="flex justify-between">
+          <h3 className="text-sm font-medium text-red-800 flex items-center">
+            {getIcon()}
+            Facebook Permission Error
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-red-500 hover:text-red-700 focus:outline-none"
+          >
+            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+              <path
+                fillRule="evenodd"
+                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </button>
+        </div>
+        <div className="mt-2 text-sm text-red-700">
+          <p className="mb-2">{message}</p>
+          <div className="mt-3">
+            <a 
+              href="https://developers.facebook.com/apps/" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="inline-flex items-center px-3 py-1.5 border border-red-300 text-xs font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            >
+              Open Facebook Developers
+              <svg className="ml-1 h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Regular notification
   return (
     <div
       className={`mb-4 p-4 rounded-md flex justify-between items-center ${getStyles()}`}
