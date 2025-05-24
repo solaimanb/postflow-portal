@@ -4,8 +4,8 @@ service cloud.firestore {
     // Helper function to check if a user is an admin
     function isAdmin() {
       return request.auth != null && 
-             exists(/databases/$(database)/documents/authorized_users/$(request.auth.token.email.toLowerCase())) &&
-             get(/databases/$(database)/documents/authorized_users/$(request.auth.token.email.toLowerCase())).data.role == 'admin';
+             exists(/databases/$(database)/documents/authorized_users/$(request.auth.token.email)) &&
+             get(/databases/$(database)/documents/authorized_users/$(request.auth.token.email)).data.role == 'admin';
     }
     
     // Only authenticated and authorized admin users can access any data by default

@@ -88,23 +88,29 @@ export const searchTopics = async (
 // ======================================================
 export const getUserPages = async (userId: string): Promise<FacebookPage[]> => {
   try {
+    console.log(`Querying Firestore for pages with userId: ${userId}`);
+    
     const pagesQuery = query(
       collection(db, "facebook_pages"),
       where("userId", "==", userId)
     );
 
+    console.log("Executing Firestore query...");
     const snapshot = await getDocs(pagesQuery);
+    console.log(`Query returned ${snapshot.docs.length} documents`);
+    
     const pages = snapshot.docs.map(
-      (doc) =>
-        ({
-          id: doc.id,
-          ...doc.data(),
-        } as FacebookPage)
+      (doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      } as FacebookPage)
     );
 
     console.log(`Retrieved ${pages.length} Facebook pages for user`);
+    
     return pages;
-  } catch {
+  } catch (error) {
+    console.error("Error fetching Facebook pages:", error);
     throw new Error("Failed to fetch Facebook pages");
   }
 };
