@@ -1,36 +1,46 @@
+/**
+ * Authentication Service
+ *
+ * Handles user authentication, session management, and security features
+ * for the application's admin users.
+ */
+
 import { db } from "../firebase";
 import { doc, getDoc } from "firebase/firestore";
 import bcrypt from "bcryptjs";
 
-// Session storage keys
+// ======================================================
+// Constants and Configuration - Session storage keys
+// & Security settings
+// ======================================================
 const SESSION_USER_KEY = "user";
 const SESSION_AUTH_KEY = "auth_token";
 const SESSION_TOKEN_EXPIRY = "token_expiry";
 const LOGIN_ATTEMPTS_KEY = "login_attempts";
 
-// Token expiration time (2 hours in milliseconds)
-const TOKEN_EXPIRATION = 2 * 60 * 60 * 1000;
-
-// Maximum login attempts before cooldown
+const TOKEN_EXPIRATION = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
 const MAX_LOGIN_ATTEMPTS = 5;
-// Cooldown period after max attempts (15 minutes in milliseconds)
-const LOGIN_COOLDOWN = 15 * 60 * 1000;
+const LOGIN_COOLDOWN = 15 * 60 * 1000; // 15 minutes in milliseconds
 
-// User type definition
+// ======================================================
+// Types and Interfaces
+// ======================================================
 export interface AdminUser {
   email: string;
   role: string;
   name: string;
 }
 
-// Login attempts tracking interface
 interface LoginAttempts {
   count: number;
   lastAttempt: number;
   cooldownUntil?: number;
 }
 
-// Get user data from Firestore
+// ======================================================
+// User Data Access - Retrieves user data from Firestore
+// & Checks if a user has admin privileges
+// ======================================================
 export const getUserData = async (email: string) => {
   try {
     const userRef = doc(db, "authorized_users", email.toLowerCase());
@@ -46,7 +56,6 @@ export const getUserData = async (email: string) => {
   }
 };
 
-// Check if the user is an admin
 export const isUserAdmin = async (email: string): Promise<boolean> => {
   try {
     const userData = await getUserData(email);
@@ -57,7 +66,10 @@ export const isUserAdmin = async (email: string): Promise<boolean> => {
   }
 };
 
-// Verify password against the stored hash
+// ======================================================
+// Authentication Utilities - Verifies password
+// & Generates auth token
+// ======================================================
 export const verifyPassword = async (
   password: string,
   hashedPassword: string
@@ -70,7 +82,6 @@ export const verifyPassword = async (
   }
 };
 
-// Generate a secure auth token with expiration
 const generateAuthToken = (email: string): string => {
   return btoa(
     `${email}:${new Date().getTime()}:${Math.random()
@@ -79,7 +90,10 @@ const generateAuthToken = (email: string): string => {
   );
 };
 
-// Get login attempts from session storage
+// ======================================================
+// Security and Rate Limiting - Retrieves login attempt data
+// & Updates login attempt tracking data
+// ======================================================
 const getLoginAttempts = (email: string): LoginAttempts => {
   try {
     const attemptsJson = sessionStorage.getItem(LOGIN_ATTEMPTS_KEY);
@@ -94,7 +108,6 @@ const getLoginAttempts = (email: string): LoginAttempts => {
   }
 };
 
-// Update login attempts in session storage
 const updateLoginAttempts = (email: string, success: boolean): void => {
   try {
     const attemptsJson = sessionStorage.getItem(LOGIN_ATTEMPTS_KEY);
@@ -102,10 +115,8 @@ const updateLoginAttempts = (email: string, success: boolean): void => {
     const emailKey = email.toLowerCase();
 
     if (success) {
-      // Reset attempts on successful login
       delete attempts[emailKey];
     } else {
-      // Increment attempts on failed login
       const currentAttempts = attempts[emailKey] || {
         count: 0,
         lastAttempt: 0,
@@ -113,7 +124,6 @@ const updateLoginAttempts = (email: string, success: boolean): void => {
       currentAttempts.count += 1;
       currentAttempts.lastAttempt = Date.now();
 
-      // Set cooldown if max attempts reached
       if (currentAttempts.count >= MAX_LOGIN_ATTEMPTS) {
         currentAttempts.cooldownUntil = Date.now() + LOGIN_COOLDOWN;
       }
@@ -127,13 +137,15 @@ const updateLoginAttempts = (email: string, success: boolean): void => {
   }
 };
 
-// Sign in with email and password (using Firestore for verification)
+// ======================================================
+// Authentication API - Authenticates a user with 
+// email and password
+// ======================================================
 export const loginWithEmailAndPassword = async (
   email: string,
   password: string
 ): Promise<AdminUser> => {
   try {
-    // Check for login attempt limits
     const attempts = getLoginAttempts(email);
     if (attempts.cooldownUntil && Date.now() < attempts.cooldownUntil) {
       const minutesLeft = Math.ceil(
@@ -144,7 +156,6 @@ export const loginWithEmailAndPassword = async (
       );
     }
 
-    // First, check if the user exists in Firestore and is an admin
     const userData = await getUserData(email);
 
     if (!userData) {
@@ -157,7 +168,6 @@ export const loginWithEmailAndPassword = async (
       throw new Error("Unauthorized access");
     }
 
-    // Verify the password against the stored hash
     const passwordValid = await verifyPassword(password, userData.password);
 
     if (!passwordValid) {
@@ -165,21 +175,17 @@ export const loginWithEmailAndPassword = async (
       throw new Error("Invalid password");
     }
 
-    // Reset login attempts on successful login
     updateLoginAttempts(email, true);
 
-    // Generate an auth token and set expiration
     const authToken = generateAuthToken(email);
     const expiryTime = Date.now() + TOKEN_EXPIRATION;
 
-    // Save user data and token to session storage
     const user: AdminUser = {
       email: email.toLowerCase(),
       role: userData.role,
       name: userData.name || "Admin User",
     };
 
-    // Store in session storage
     sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
     sessionStorage.setItem(SESSION_AUTH_KEY, authToken);
     sessionStorage.setItem(SESSION_TOKEN_EXPIRY, expiryTime.toString());
@@ -193,7 +199,10 @@ export const loginWithEmailAndPassword = async (
   }
 };
 
-// Check if user is currently logged in with valid token
+// ======================================================
+// Session Management - Checks if a user is currently logged in
+// & Retrieves the current user, Signs out the current user
+// ======================================================
 export const isLoggedIn = (): boolean => {
   try {
     const token = sessionStorage.getItem(SESSION_AUTH_KEY);
@@ -203,10 +212,8 @@ export const isLoggedIn = (): boolean => {
       return false;
     }
 
-    // Check if token has expired
     const expiryTime = parseInt(expiryTimeStr, 10);
     if (Date.now() > expiryTime) {
-      // Clear expired session
       sessionStorage.removeItem(SESSION_USER_KEY);
       sessionStorage.removeItem(SESSION_AUTH_KEY);
       sessionStorage.removeItem(SESSION_TOKEN_EXPIRY);
@@ -215,14 +222,12 @@ export const isLoggedIn = (): boolean => {
 
     return true;
   } catch {
-    return false; // Handle cases where sessionStorage is not available
+    return false;
   }
 };
 
-// Get current user from session storage
 export const getCurrentUser = (): AdminUser | null => {
   try {
-    // First check if session is valid
     if (!isLoggedIn()) {
       return null;
     }
@@ -234,7 +239,6 @@ export const getCurrentUser = (): AdminUser | null => {
   }
 };
 
-// Sign out the current user
 export const logoutUser = (): void => {
   try {
     sessionStorage.removeItem(SESSION_USER_KEY);

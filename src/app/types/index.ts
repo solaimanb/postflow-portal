@@ -40,6 +40,7 @@ export interface FacebookPost {
   scheduledFor?: string;
   status: "draft" | "scheduled" | "published" | "failed";
   mediaUrls?: string[];
+  mediaFiles?: File[];
 }
 
 export interface PostScheduleParams {
@@ -47,4 +48,5 @@ export interface PostScheduleParams {
   pageIds: string[];
   scheduledFor?: string;
   mediaUrls?: string[];
+  mediaFiles?: File[];
 }

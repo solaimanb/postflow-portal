@@ -7,6 +7,7 @@ import {
   searchTopics,
   getUserPages,
   createPost,
+  processScheduledPosts,
 } from "../../lib/services/facebook";
 import {
   FacebookTopic,
@@ -15,14 +16,22 @@ import {
   TopicSearchParams,
 } from "../../types";
 import TopicSearch from "../../../components/TopicSearch";
-import TopicTable from "../../../components/TopicTable";
 import PostForm from "../../../components/PostForm";
+import FacebookPageSetup from "../../../components/FacebookPageSetup";
+import Notification from "../../../components/Notification";
+
+const SCHEDULED_POST_CHECK_INTERVAL = 30000; // 30 seconds
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("topics");
   const [topics, setTopics] = useState<FacebookTopic[]>([]);
   const [pages, setPages] = useState<FacebookPage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [scheduledPostCount, setScheduledPostCount] = useState(0);
+  const [notification, setNotification] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -39,12 +48,65 @@ export default function Dashboard() {
     }
   }, [router]);
 
+  // Automatically check for scheduled posts that need to be published
+  useEffect(() => {
+    // Process any scheduled posts immediately when dashboard loads
+    const checkScheduledPosts = async () => {
+      try {
+        await processScheduledPosts();
+        updateScheduledPostCount();
+      } catch (error) {
+        console.error("Error checking scheduled posts:", error);
+      }
+    };
+
+    // Run immediately on component mount
+    checkScheduledPosts();
+
+    // Set up interval to check regularly
+    const intervalId = setInterval(
+      checkScheduledPosts,
+      SCHEDULED_POST_CHECK_INTERVAL
+    );
+
+    // Clean up interval on component unmount
+    return () => clearInterval(intervalId);
+  }, []);
+
+  // Update the count of scheduled posts
+  const updateScheduledPostCount = () => {
+    try {
+      const postsJson = localStorage.getItem('scheduled_posts');
+      if (postsJson) {
+        const posts = JSON.parse(postsJson);
+        if (Array.isArray(posts)) {
+          setScheduledPostCount(posts.filter(post => post.status === 'scheduled').length);
+        }
+      } else {
+        setScheduledPostCount(0);
+      }
+    } catch (error) {
+      console.error("Error counting scheduled posts:", error);
+      setScheduledPostCount(0);
+    }
+  };
+  
+  // Set up another effect to update the count regularly
+  useEffect(() => {
+    updateScheduledPostCount();
+    
+    const countInterval = setInterval(updateScheduledPostCount, 5000);
+    
+    return () => clearInterval(countInterval);
+  }, []);
+
   const fetchUserPages = async (email: string) => {
     try {
       const userPages = await getUserPages(email);
       setPages(userPages);
     } catch (error) {
       console.error("Error fetching pages:", error);
+      showNotification("error", "Failed to fetch Facebook pages");
     }
   };
 
@@ -53,35 +115,20 @@ export default function Dashboard() {
     try {
       const results = await searchTopics(params);
       setTopics(results);
+      console.log(`Found ${results.length} topics related to "${params.keyword}"`);
     } catch (error) {
       console.error("Error searching topics:", error);
+      showNotification("error", "Failed to search topics");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDownloadCSV = () => {
-    // This would handle CSV download logic
-    const csvContent =
-      "Topic,Date,Popularity Score\n" +
-      topics
-        .map(
-          (topic) =>
-            `"${topic.topic}","${new Date(topic.date).toLocaleDateString()}","${
-              topic.popularityScore
-            }"`
-        )
-        .join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "facebook_topics.csv");
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const showNotification = (type: "success" | "error", message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => {
+      setNotification(null);
+    }, 5000);
   };
 
   const handlePostNow = async (params: PostScheduleParams) => {
@@ -89,7 +136,7 @@ export default function Dashboard() {
     if (!user) return;
 
     try {
-      await createPost(user.email, {
+      const postIds = await createPost(user.email, {
         id: "", // Will be assigned by Firestore
         content: params.content,
         pageIds: params.pageIds,
@@ -97,12 +144,17 @@ export default function Dashboard() {
         createdAt: new Date().toISOString(),
         status: "published",
         mediaUrls: params.mediaUrls,
+        mediaFiles: params.mediaFiles,
       });
 
-      alert("Post published successfully!");
+      if (postIds.length === params.pageIds.length) {
+        showNotification("success", `Successfully posted to all ${postIds.length} selected pages.`);
+      } else {
+        showNotification("success", `Posted to ${postIds.length} of ${params.pageIds.length} selected pages.`);
+      }
     } catch (error) {
       console.error("Error publishing post:", error);
-      alert("Failed to publish post. Please try again.");
+      showNotification("error", "Failed to publish post. Please try again.");
     }
   };
 
@@ -111,6 +163,8 @@ export default function Dashboard() {
     if (!user || !params.scheduledFor) return;
 
     try {
+      // Note: mediaFiles are not supported for scheduled posts
+      // This should be prevented in the UI already
       await createPost(user.email, {
         id: "", // Will be assigned by Firestore
         content: params.content,
@@ -122,101 +176,123 @@ export default function Dashboard() {
         mediaUrls: params.mediaUrls,
       });
 
-      alert("Post scheduled successfully!");
+      showNotification(
+        "success",
+        `Post scheduled for ${new Date(params.scheduledFor).toLocaleString()}`
+      );
+      
+      // Update the scheduled post count
+      updateScheduledPostCount();
     } catch (error) {
       console.error("Error scheduling post:", error);
-      alert("Failed to schedule post. Please try again.");
+      showNotification("error", "Failed to schedule post. Please try again.");
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <h1 className="text-xl font-bold text-gray-900">
-            Facebook Topics & Posting Portal
-          </h1>
-        </div>
-      </header>
+    <div className="container mx-auto px-4 py-8">
+      {notification && (
+        <Notification
+          type={notification.type}
+          message={notification.message}
+          onClose={() => setNotification(null)}
+        />
+      )}
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="space-y-6">
-          <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-            <div className="border-b border-gray-200">
-              <nav className="-mb-px flex">
-                <button
-                  onClick={() => setActiveTab("topics")}
-                  className={`${
-                    activeTab === "topics"
-                      ? "border-blue-500 text-blue-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  } whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm`}
-                >
-                  Topics
-                </button>
-                <button
-                  onClick={() => setActiveTab("posts")}
-                  className={`${
-                    activeTab === "posts"
-                      ? "border-blue-500 text-blue-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  } whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm`}
-                >
-                  Posts
-                </button>
-              </nav>
-            </div>
-            <div className="p-6">
-              {activeTab === "topics" ? (
-                <div>
-                  <div className="mb-6">
-                    <h2 className="text-lg font-medium text-gray-900">
-                      Facebook Topics
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-500">
-                      Search for trending topics on Facebook by keywords and
-                      date ranges.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                    <div className="col-span-full">
-                      <TopicSearch
-                        onSearch={handleSearch}
-                        isLoading={loading}
-                      />
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Dashboard</h1>
+        <p className="text-gray-600">
+          Manage your social media content and scheduled posts.
+          {scheduledPostCount > 0 && (
+            <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+              {scheduledPostCount} scheduled post{scheduledPostCount !== 1 && "s"}
+            </span>
+          )}
+        </p>
+      </div>
+
+      <div className="border-b border-gray-200 mb-6">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab("topics")}
+            className={`${
+              activeTab === "topics"
+                ? "border-indigo-500 text-indigo-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Topic Search
+          </button>
+          <button
+            onClick={() => setActiveTab("post")}
+            className={`${
+              activeTab === "post"
+                ? "border-indigo-500 text-indigo-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Create Post
+          </button>
+          <button
+            onClick={() => setActiveTab("pages")}
+            className={`${
+              activeTab === "pages"
+                ? "border-indigo-500 text-indigo-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+          >
+            Page Setup
+          </button>
+        </nav>
+      </div>
+
+      {activeTab === "topics" && (
+        <>
+          <TopicSearch
+            onSearch={handleSearch}
+            isLoading={loading}
+          />
+          {topics.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-lg font-medium text-gray-900">Search Results</h3>
+              <ul className="mt-3 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                {topics.map((topic) => (
+                  <li key={topic.id} className="bg-white overflow-hidden shadow rounded-lg">
+                    <div className="px-4 py-5 sm:p-6">
+                      <h4 className="text-lg font-semibold">{topic.topic}</h4>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Score: {topic.popularityScore}/100
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {topic.keywords.map((keyword) => (
+                          <span 
+                            key={keyword} 
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                          >
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                  {topics.length > 0 && (
-                    <TopicTable
-                      topics={topics}
-                      onDownloadCSV={handleDownloadCSV}
-                    />
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <div className="mb-6">
-                    <h2 className="text-lg font-medium text-gray-900">
-                      Facebook Posts
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-500">
-                      Create, schedule, and manage posts for your Facebook
-                      pages.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-1 gap-6">
-                    <PostForm
-                      pages={pages}
-                      onPostNow={handlePostNow}
-                      onSchedulePost={handleSchedulePost}
-                    />
-                  </div>
-                </div>
-              )}
+                  </li>
+                ))}
+              </ul>
             </div>
-          </div>
-        </div>
-      </main>
+          )}
+        </>
+      )}
+
+      {activeTab === "post" && (
+        <PostForm
+          pages={pages}
+          onPostNow={handlePostNow}
+          onSchedulePost={handleSchedulePost}
+        />
+      )}
+
+      {activeTab === "pages" && (
+        <FacebookPageSetup />
+      )}
     </div>
   );
 }

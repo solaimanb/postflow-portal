@@ -30,5 +30,15 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read, write: if isAdmin();
     }
+    
+    // Rules for facebook_pages collection - allow all operations without auth
+    match /facebook_pages/{pageId} {
+      allow read, write: if request.auth != null || !request.auth;
+    }
+    
+    // Rules for scheduled_posts collection
+    match /scheduled_posts/{postId} {
+      allow read, write: if true;
+    }
   }
 } 
