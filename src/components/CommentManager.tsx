@@ -352,7 +352,7 @@ export default function CommentManager({
 
   return (
     <div className="space-y-8">
-      <div className="bg-white shadow sm:rounded-lg p-4">
+      <div className="">
         <h3 className="text-lg font-medium text-gray-900 mb-4">
           Manage Comments
         </h3>

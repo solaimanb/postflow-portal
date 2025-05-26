@@ -1,43 +1,36 @@
 "use client";
 
-import { useState, useEffect, ChangeEvent } from "react";
-import { FacebookPage, PostScheduleParams, FacebookPost } from "../types";
 import Image from "next/image";
+import { useState, useEffect, ChangeEvent } from "react";
+import { CircleAlert } from "lucide-react";
+import { FacebookPage, PostScheduleParams, FacebookPost } from "../types";
 
-// ======================================================
-// Types and Interfaces
-// ======================================================
 interface PostFormProps {
   pages: FacebookPage[];
   onPostNow: (params: PostScheduleParams) => Promise<void>;
   onSchedulePost: (params: PostScheduleParams) => Promise<void>;
 }
 
-// Media upload status interface
 interface MediaUploadStatus {
   fileName: string;
-  status: 'pending' | 'uploading' | 'success' | 'error';
+  status: "pending" | "uploading" | "success" | "error";
   progress: number;
   errorMessage?: string;
 }
 
-// ======================================================
-// PostForm Component
-// ======================================================
 export default function PostForm({
   pages,
   onPostNow,
   onSchedulePost,
 }: PostFormProps) {
-  // ======================================================
-  // State Management
-  // ======================================================
   const [content, setContent] = useState("");
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
   const [scheduleDate, setScheduleDate] = useState("");
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
-  const [mediaPreview, setMediaPreview] = useState<{ [key: string]: string }>({});
+  const [mediaPreview, setMediaPreview] = useState<{ [key: string]: string }>(
+    {}
+  );
   const [postStatus, setPostStatus] = useState<{
     success?: boolean;
     message?: string;
@@ -45,12 +38,10 @@ export default function PostForm({
   } | null>(null);
   const [scheduledPosts, setScheduledPosts] = useState<FacebookPost[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [mediaUploadStatus, setMediaUploadStatus] = useState<{ [key: string]: MediaUploadStatus }>({});
+  const [mediaUploadStatus, setMediaUploadStatus] = useState<{
+    [key: string]: MediaUploadStatus;
+  }>({});
 
-  // ======================================================
-  // Effects
-  // ======================================================
-  // Load scheduled posts from localStorage
   useEffect(() => {
     const loadScheduledPosts = () => {
       try {
@@ -68,18 +59,13 @@ export default function PostForm({
       }
     };
 
-    // Load posts initially
     loadScheduledPosts();
 
-    // Set up interval to refresh the list
     const intervalId = setInterval(loadScheduledPosts, 10000);
 
     return () => clearInterval(intervalId);
   }, []);
 
-  // ======================================================
-  // Event Handlers
-  // ======================================================
   const handlePageSelection = (pageId: string) => {
     setSelectedPageIds((prevSelectedPages) => {
       if (prevSelectedPages.includes(pageId)) {
@@ -96,17 +82,17 @@ export default function PostForm({
 
       // Create initial upload status for each file
       const newUploadStatus: { [key: string]: MediaUploadStatus } = {};
-      newFiles.forEach(file => {
+      newFiles.forEach((file) => {
         newUploadStatus[file.name] = {
           fileName: file.name,
-          status: 'pending',
+          status: "pending",
           progress: 0,
         };
       });
 
-      setMediaUploadStatus(prev => ({
+      setMediaUploadStatus((prev) => ({
         ...prev,
-        ...newUploadStatus
+        ...newUploadStatus,
       }));
 
       // Generate previews for new files
@@ -136,7 +122,6 @@ export default function PostForm({
     setMediaFiles([]);
     setMediaPreview({});
     setMediaUploadStatus({});
-    // Reset the file input value
     const fileInput = document.getElementById(
       "media-files"
     ) as HTMLInputElement;
@@ -149,7 +134,6 @@ export default function PostForm({
     const fileToRemove = mediaFiles[index];
     setMediaFiles((prevFiles) => prevFiles.filter((_, i) => i !== index));
 
-    // Remove the preview
     if (fileToRemove && mediaPreview[fileToRemove.name]) {
       setMediaPreview((prev) => {
         const newPreview = { ...prev };
@@ -158,7 +142,6 @@ export default function PostForm({
       });
     }
 
-    // Remove upload status
     if (fileToRemove) {
       setMediaUploadStatus((prev) => {
         const newStatus = { ...prev };
@@ -174,10 +157,12 @@ export default function PostForm({
 
     try {
       setIsSubmitting(true);
-      
+
       // Check if there are video files that need to be uploaded
-      const hasVideoFiles = mediaFiles.some(file => file.type.startsWith("video/"));
-      
+      const hasVideoFiles = mediaFiles.some((file) =>
+        file.type.startsWith("video/")
+      );
+
       // Set initial post status message based on whether we're uploading videos or not
       if (hasVideoFiles) {
         setPostStatus({ message: "Preparing to upload videos to Facebook..." });
@@ -187,18 +172,21 @@ export default function PostForm({
 
       // Update status for each video file to 'uploading'
       const updatedStatus: { [key: string]: MediaUploadStatus } = {};
-      mediaFiles.forEach(file => {
+      mediaFiles.forEach((file) => {
         if (file.type.startsWith("video/")) {
           updatedStatus[file.name] = {
-            ...mediaUploadStatus[file.name] || { fileName: file.name, progress: 0 },
-            status: 'uploading',
+            ...(mediaUploadStatus[file.name] || {
+              fileName: file.name,
+              progress: 0,
+            }),
+            status: "uploading",
           };
         }
       });
-      
-      setMediaUploadStatus(prev => ({
+
+      setMediaUploadStatus((prev) => ({
         ...prev,
-        ...updatedStatus
+        ...updatedStatus,
       }));
 
       // Track if we're currently uploading videos to control the global status message
@@ -213,21 +201,19 @@ export default function PostForm({
           mediaUrls: mediaUrl ? [mediaUrl] : undefined,
           mediaFiles: mediaFiles.length > 0 ? mediaFiles : undefined,
           onUploadProgress: (fileName: string, progress: number) => {
-            // Update file-specific progress
-            setMediaUploadStatus(prev => ({
+            setMediaUploadStatus((prev) => ({
               ...prev,
               [fileName]: {
                 ...prev[fileName],
                 progress,
-                status: progress < 100 ? 'uploading' : 'success'
-              }
+                status: progress < 100 ? "uploading" : "success",
+              },
             }));
-            
-            // Update global status message based on progress
+
             if (progress < 100) {
               currentlyUploadingVideo = true;
               currentUploadingFile = fileName;
-              
+
               let statusMessage = "Preparing video...";
               if (progress < 20) {
                 statusMessage = "Reading video file...";
@@ -238,60 +224,69 @@ export default function PostForm({
               } else {
                 statusMessage = "Almost done...";
               }
-              
-              setPostStatus({ 
-                message: `${statusMessage} (${Math.round(progress)}%) - ${fileName}`
+
+              setPostStatus({
+                message: `${statusMessage} (${Math.round(
+                  progress
+                )}%) - ${fileName}`,
               });
             } else {
-              // If upload is complete but we haven't reset the form yet
-              if (currentlyUploadingVideo && currentUploadingFile === fileName) {
+              if (
+                currentlyUploadingVideo &&
+                currentUploadingFile === fileName
+              ) {
                 currentlyUploadingVideo = false;
                 videoUploadSucceeded = true;
-                setPostStatus({ message: "Video uploaded successfully! Publishing post..." });
+                setPostStatus({
+                  message: "Video uploaded successfully! Publishing post...",
+                });
               }
             }
           },
           onUploadError: (fileName: string, error: string) => {
-            setMediaUploadStatus(prev => ({
+            setMediaUploadStatus((prev) => ({
               ...prev,
               [fileName]: {
                 ...prev[fileName],
-                status: 'error',
-                errorMessage: error
-              }
+                status: "error",
+                errorMessage: error,
+              },
             }));
             setPostStatus({
               success: false,
-              message: `Error uploading ${fileName}: ${error}`
+              message: `Error uploading ${fileName}: ${error}`,
             });
             currentlyUploadingVideo = false;
-          }
+          },
         });
 
-        // If we made it here, everything succeeded (or at least the video upload did)
         resetForm();
-        setPostStatus({ success: true, message: "Post published successfully!" });
+        setPostStatus({
+          success: true,
+          message: "Post published successfully!",
+        });
       } catch (error) {
         console.error("Error posting:", error);
-        
-        // If the video upload succeeded but the post creation failed, show a more accurate message
         if (videoUploadSucceeded && hasVideoFiles) {
-          setPostStatus({ 
-            success: true, 
-            message: "Video was uploaded successfully! You can view it on your Facebook page." 
+          setPostStatus({
+            success: true,
+            message:
+              "Video was uploaded successfully! You can view it on your Facebook page.",
           });
           resetForm();
         } else {
           setPostStatus({
             success: false,
-            message: error instanceof Error ? error.message : "An unknown error occurred",
+            message:
+              error instanceof Error
+                ? error.message
+                : "An unknown error occurred",
           });
         }
       }
     } finally {
       setIsSubmitting(false);
-      
-      // Clear success status after 3 seconds if it's a success message
+
       if (postStatus?.success === true) {
         setTimeout(() => {
           setPostStatus(null);
@@ -341,22 +336,20 @@ export default function PostForm({
         mediaUrls: mediaUrl ? [mediaUrl] : undefined,
       });
 
-      // Reset form
       resetForm();
       setPostStatus({ success: true, message: "Post scheduled successfully!" });
-      
-      // Refresh scheduled posts
+
       refreshScheduledPosts();
     } catch (error) {
       console.error("Error scheduling post:", error);
       setPostStatus({
         success: false,
-        message: error instanceof Error ? error.message : "An unknown error occurred",
+        message:
+          error instanceof Error ? error.message : "An unknown error occurred",
       });
     } finally {
       setIsSubmitting(false);
-      
-      // Clear success status after 3 seconds
+
       if (!postStatus?.success === false) {
         setTimeout(() => {
           setPostStatus(null);
@@ -365,9 +358,6 @@ export default function PostForm({
     }
   };
 
-  // ======================================================
-  // Helper Functions
-  // ======================================================
   const resetForm = () => {
     setContent("");
     setSelectedPageIds([]);
@@ -388,7 +378,6 @@ export default function PostForm({
     }
   };
 
-  // Format date for display
   const formatDate = (dateString: string) => {
     try {
       return new Date(dateString).toLocaleString();
@@ -397,7 +386,6 @@ export default function PostForm({
     }
   };
 
-  // Render permission error component
   const renderPermissionError = () => {
     return (
       <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-4">
@@ -484,20 +472,29 @@ export default function PostForm({
     );
   };
 
-  // Render upload progress indicator
   const renderUploadProgress = (file: File) => {
     const status = mediaUploadStatus[file.name];
-    
-    if (!status || status.status === 'pending') {
+
+    if (!status || status.status === "pending") {
       return null;
     }
-    
-    if (status.status === 'error') {
+
+    if (status.status === "error") {
       return (
         <div className="mt-1">
           <div className="flex items-center">
-            <svg className="h-4 w-4 text-red-500 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            <svg
+              className="h-4 w-4 text-red-500 mr-1"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
             <span className="text-xs text-red-500 truncate">Upload failed</span>
           </div>
@@ -507,10 +504,10 @@ export default function PostForm({
         </div>
       );
     }
-    
-    if (status.status === 'uploading') {
+
+    if (status.status === "uploading") {
       let statusMessage = "Preparing...";
-      
+
       if (status.progress < 20) {
         statusMessage = "Reading file...";
       } else if (status.progress < 50) {
@@ -520,47 +517,71 @@ export default function PostForm({
       } else {
         statusMessage = "Almost done...";
       }
-      
+
       return (
         <div className="mt-1">
           <div className="flex items-center text-xs text-blue-500">
-            <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            <svg
+              className="animate-spin h-3 w-3 mr-1"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
             </svg>
-            <span>{statusMessage} ({Math.round(status.progress)}%)</span>
+            <span>
+              {statusMessage} ({Math.round(status.progress)}%)
+            </span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
-            <div 
-              className="bg-blue-500 h-1 rounded-full transition-all duration-300 ease-in-out" 
+            <div
+              className="bg-blue-500 h-1 rounded-full transition-all duration-300 ease-in-out"
               style={{ width: `${status.progress}%` }}
             ></div>
           </div>
         </div>
       );
     }
-    
-    if (status.status === 'success') {
+
+    if (status.status === "success") {
       return (
         <div className="mt-1 flex items-center text-xs text-green-500">
-          <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          <svg
+            className="h-4 w-4 mr-1"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M5 13l4 4L19 7"
+            />
           </svg>
           <span>Upload complete</span>
         </div>
       );
     }
-    
+
     return null;
   };
 
-  // ======================================================
-  // Render
-  // ======================================================
   return (
     <div className="space-y-6">
-      {/* Post Creation Form */}
-      <div className="bg-white shadow sm:rounded-lg p-4">
+      <div>
         <h3 className="text-lg font-medium text-gray-900 mb-4">
           Create New Post
         </h3>
@@ -569,18 +590,7 @@ export default function PostForm({
         <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-4">
           <div className="flex">
             <div className="flex-shrink-0">
-              <svg
-                className="h-5 w-5 text-blue-400"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2h-1V9a1 1 0 00-1-1z"
-                  clipRule="evenodd"
-                />
-              </svg>
+              <CircleAlert className="h-4 w-4 text-blue-500" />
             </div>
             <div className="ml-3 flex-1 md:flex md:justify-between">
               <p className="text-sm text-blue-700">
@@ -775,7 +785,7 @@ export default function PostForm({
                           : "File"}{" "}
                         • {(file.size / (1024 * 1024)).toFixed(2)} MB
                       </div>
-                      
+
                       {/* Display upload progress */}
                       {renderUploadProgress(file)}
                     </div>

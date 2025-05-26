@@ -16,7 +16,11 @@ export default function CreatePostPage() {
   } | null>(null);
 
   const showNotification = useCallback(
-    (type: "success" | "error" | "info", message: string, isPermissionError?: boolean) => {
+    (
+      type: "success" | "error" | "info",
+      message: string,
+      isPermissionError?: boolean
+    ) => {
       setNotification({ type, message, isPermissionError });
       setTimeout(() => {
         setNotification(null);
@@ -35,7 +39,8 @@ export default function CreatePostPage() {
       console.error("Error fetching pages:", error);
       setNotification({
         type: "error",
-        message: "Failed to fetch Facebook pages. Please check your connection and try again.",
+        message:
+          "Failed to fetch Facebook pages. Please check your connection and try again.",
       });
     }
   }, []);
@@ -71,16 +76,19 @@ export default function CreatePostPage() {
       console.error("Error publishing post:", error);
       let errorMessage = "Failed to publish post. Please try again.";
       let isPermissionError = false;
-      
+
       if (error instanceof Error) {
         if (error.message.includes("Facebook application permission error")) {
-          errorMessage = "Permission error: Your Facebook app doesn't have the required permissions. Go to developers.facebook.com, navigate to App Settings > Advanced > Optional Permissions, and request 'pages_manage_posts', 'pages_read_engagement', and 'pages_manage_metadata' permissions.";
+          errorMessage =
+            "Permission error: Your Facebook app doesn't have the required permissions. Go to developers.facebook.com, navigate to App Settings > Advanced > Optional Permissions, and request 'pages_manage_posts', 'pages_read_engagement', and 'pages_manage_metadata' permissions.";
           isPermissionError = true;
         } else if (error.message.includes("Permission error")) {
-          errorMessage = "Token permission error: Your access token doesn't have the required permissions for posting.";
+          errorMessage =
+            "Token permission error: Your access token doesn't have the required permissions for posting.";
           isPermissionError = true;
         } else if (error.message.includes("Page not found")) {
-          errorMessage = "Page not found: The Facebook page ID may be incorrect or your app doesn't have access to it.";
+          errorMessage =
+            "Page not found: The Facebook page ID may be incorrect or your app doesn't have access to it.";
         } else {
           errorMessage = error.message;
           if (error.message.includes("permission")) {
@@ -88,7 +96,7 @@ export default function CreatePostPage() {
           }
         }
       }
-      
+
       showNotification("error", errorMessage, isPermissionError);
     }
   };
@@ -98,14 +106,17 @@ export default function CreatePostPage() {
     if (!user || !params.scheduledFor) return;
 
     try {
-      if (params.mediaFiles && params.mediaFiles.some(file => file.type.startsWith('video/'))) {
+      if (
+        params.mediaFiles &&
+        params.mediaFiles.some((file) => file.type.startsWith("video/"))
+      ) {
         showNotification(
           "error",
           "Video files cannot be scheduled. Please use the 'Post Now' button for videos, or use image URLs for scheduled posts."
         );
         return;
       }
-      
+
       await createPost(user.email, {
         id: "",
         content: params.content,
@@ -151,7 +162,7 @@ export default function CreatePostPage() {
   }, [fetchUserPages]);
 
   return (
-    <div className="space-y-6">
+    <div>
       {notification && (
         <Notification
           type={notification.type}
@@ -160,11 +171,6 @@ export default function CreatePostPage() {
           onClose={() => setNotification(null)}
         />
       )}
-      
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold">Create Post</h1>
-        <p className="text-muted-foreground">Create and schedule posts for your Facebook pages.</p>
-      </div>
 
       <PostForm
         pages={pages}
@@ -173,4 +179,4 @@ export default function CreatePostPage() {
       />
     </div>
   );
-} 
+}

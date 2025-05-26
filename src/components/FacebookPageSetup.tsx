@@ -156,7 +156,7 @@ export default function FacebookPageSetup() {
   };
 
   return (
-    <div className="bg-white shadow sm:rounded-lg p-6">
+    <div className="">
       <h2 className="text-xl font-semibold text-gray-900 mb-4">
         Facebook Page Setup
       </h2>

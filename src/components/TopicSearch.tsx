@@ -12,7 +12,7 @@ const TopicSearch: React.FC<TopicSearchProps> = ({ onSearch, isLoading }) => {
   const [endDate, setEndDate] = useState("");
   const [maxItems, setMaxItems] = useState("20");
   const [showActorInfo, setShowActorInfo] = useState(false);
-  
+
   const actorId = "easyapi~facebook-posts-search-scraper";
   const actorStoreUrl = `https://apify.com/easyapi/facebook-posts-search-scraper`;
 
@@ -29,7 +29,7 @@ const TopicSearch: React.FC<TopicSearchProps> = ({ onSearch, isLoading }) => {
   };
 
   return (
-    <div className="bg-white shadow rounded-lg p-6 mb-6">
+    <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold text-gray-800">Search Topics</h2>
         <button
@@ -40,15 +40,19 @@ const TopicSearch: React.FC<TopicSearchProps> = ({ onSearch, isLoading }) => {
           {showActorInfo ? "Hide Actor Info" : "Show Actor Info"}
         </button>
       </div>
-      
+
       {showActorInfo && (
         <div className="mb-4 p-3 bg-gray-50 rounded border border-gray-200">
-          <h3 className="text-sm font-medium text-gray-700 mb-1">Current Apify Actor</h3>
+          <h3 className="text-sm font-medium text-gray-700 mb-1">
+            Current Apify Actor
+          </h3>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">ID: <span className="font-mono">{actorId}</span></p>
+              <p className="text-sm text-gray-600">
+                ID: <span className="font-mono">{actorId}</span>
+              </p>
             </div>
-            <a 
+            <a
               href={actorStoreUrl}
               target="_blank"
               rel="noopener noreferrer"
@@ -111,7 +115,7 @@ const TopicSearch: React.FC<TopicSearchProps> = ({ onSearch, isLoading }) => {
               className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
             />
           </div>
-          
+
           <div>
             <label
               htmlFor="maxItems"
@@ -149,4 +153,4 @@ const TopicSearch: React.FC<TopicSearchProps> = ({ onSearch, isLoading }) => {
   );
 };
 
-export default TopicSearch; 
+export default TopicSearch;
