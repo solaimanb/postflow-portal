@@ -1,138 +1,118 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { CheckCircle, AlertCircle, Info } from "lucide-react";
+import { toast } from "sonner";
+
 import { searchTopics } from "@/lib/services/facebook";
-import { FacebookTopic, TopicSearchParams } from "@/types";
-import TopicSearch from "@/components/TopicSearch";
+import type { FacebookTopic, TopicSearchParams } from "@/types";
 import TopicTable from "@/components/TopicTable";
-import Notification from "@/components/Notification";
+
+// Component imports
+import { SearchHeader } from "./_components/search-header";
+import { ResultsHeader } from "./_components/results-header";
+import { EmptyState } from "./_components/empty-state";
+import { ResultsSkeleton } from "./_components/results-skeleton";
+import { TopicSearch } from "./_components/topic-search";
+
+// Utility imports
+import { downloadTopicsAsCSV } from "./_components/utils";
+
+const ERROR_MESSAGES = {
+  API_KEY: "API key configuration error. Please check your environment variables.",
+  SUBSCRIPTION: "This feature requires a paid subscription. The free trial has expired.",
+  DEFAULT: "Failed to search topics"
+};
 
 export default function TopicSearchPage() {
   const [topics, setTopics] = useState<FacebookTopic[]>([]);
   const [loading, setLoading] = useState(false);
-  const [notification, setNotification] = useState<{
-    type: "success" | "error" | "info";
-    message: string;
-  } | null>(null);
 
-  const handleSearch = async (params: TopicSearchParams) => {
-    setLoading(true);
+  const handleError = useCallback((error: unknown) => {
+    console.error("Error searching topics:", error);
+    let errorMessage = ERROR_MESSAGES.DEFAULT;
+
+    if (error instanceof Error) {
+      if (error.message.includes("API key not found")) {
+        errorMessage = ERROR_MESSAGES.API_KEY;
+      } else if (error.message.includes("requires a paid subscription")) {
+        errorMessage = ERROR_MESSAGES.SUBSCRIPTION;
+      } else {
+        errorMessage = error.message;
+      }
+    }
+
+    toast.error("Error", {
+      description: errorMessage,
+      icon: <AlertCircle className="h-4 w-4 text-destructive/80" />,
+    });
     setTopics([]);
+  }, []);
+
+  const handleSearch = useCallback(async (params: TopicSearchParams) => {
+    setLoading(true);
     try {
-      console.log("Searching topics with params:", params);
       const fetchedTopics = await searchTopics(params);
       setTopics(fetchedTopics);
 
       if (fetchedTopics.length === 0) {
-        setNotification({
-          type: "info",
-          message: "No topics found for the given search criteria.",
+        toast("No topics found", {
+          description: "No topics found for the given search criteria.",
+          icon: <Info className="h-4 w-4 text-foreground/70" />,
         });
       } else {
-        setNotification({
-          type: "success",
-          message: `Found ${fetchedTopics.length} topics for "${params.keyword}"`,
+        toast("Topics found", {
+          description: `Found ${fetchedTopics.length} topics for "${params.keyword}"`,
+          icon: <CheckCircle className="h-4 w-4 text-green-500/80" />,
         });
       }
     } catch (error) {
-      console.error("Error searching topics:", error);
-      let errorMessage = "Failed to search topics";
-      let errorType: "error" | "info" = "error";
-
-      if (error instanceof Error) {
-        if (error.message.includes("API key not found")) {
-          errorMessage =
-            "API key configuration error. Please check your environment variables.";
-        } else if (error.message.includes("requires a paid subscription")) {
-          errorType = "info";
-          errorMessage =
-            error.message + " The free trial for this actor has expired.";
-        } else {
-          errorMessage = error.message;
-        }
-      }
-
-      setNotification({
-        type: errorType,
-        message: errorMessage,
-      });
+      handleError(error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [handleError]);
 
-  // Handle CSV export
-  const handleDownloadCSV = () => {
+  const handleDownloadCSV = useCallback(() => {
     if (topics.length === 0) return;
+    downloadTopicsAsCSV(topics);
+  }, [topics]);
 
-    const escapeCSV = (field: string | number) => {
-      const value = String(field);
-      if (
-        value.includes(",") ||
-        value.includes('"') ||
-        value.includes("\n") ||
-        value.includes("\r")
-      ) {
-        return `"${value.replace(/"/g, '""')}"`;
-      }
-      return value;
-    };
+  const resultsContent = useMemo(() => {
+    if (loading) {
+      return <ResultsSkeleton />;
+    }
 
-    const headers = [
-      "Content",
-      "Page",
-      "Date",
-      "Likes",
-      "Comments",
-      "Shares",
-      "URL",
-    ];
-    const rows = topics.map((topic) => [
-      escapeCSV(topic.text || topic.topic || ""),
-      escapeCSV(topic.pageName || topic.relatedTopics?.[0] || "Unknown"),
-      escapeCSV(new Date(topic.time || topic.date).toLocaleString()),
-      escapeCSV(topic.likes || 0),
-      escapeCSV(topic.comments || 0),
-      escapeCSV(topic.shares || 0),
-      escapeCSV(topic.url || ""),
-    ]);
+    if (topics.length === 0) {
+      return <EmptyState />;
+    }
 
-    const csvContent = [
-      headers.map(escapeCSV).join(","),
-      ...rows.map((row) => row.join(",")),
-    ].join("\r\n");
-
-    const BOM = "\uFEFF";
-    const blob = new Blob([BOM + csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute(
-      "download",
-      `facebook-topics-${new Date().toISOString().split("T")[0]}.csv`
+    return (
+      <CardContent className="p-0">
+        <div className="overflow-x-auto w-full rounded-lg bg-background/40 backdrop-blur-[2px]">
+          <TopicTable
+            topics={topics}
+            onDownloadCSV={handleDownloadCSV}
+          />
+        </div>
+      </CardContent>
     );
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  }, [loading, topics, handleDownloadCSV]);
 
   return (
-    <div className="space-y-6">
-      {notification && (
-        <Notification
-          type={notification.type}
-          message={notification.message}
-          onClose={() => setNotification(null)}
-        />
-      )}
+    <div className="h-full w-full space-y-6">
+      <Card className="border-0 shadow-sm bg-background/95 backdrop-blur-sm rounded-lg">
+        <SearchHeader />
+        <CardContent>
+          <TopicSearch onSearch={handleSearch} isLoading={loading} />
+        </CardContent>
+      </Card>
 
-      <TopicSearch onSearch={handleSearch} isLoading={loading} />
-      {topics.length > 0 && (
-        <TopicTable topics={topics} onDownloadCSV={handleDownloadCSV} />
-      )}
+      <Card className="border-0 shadow-sm bg-background/95 backdrop-blur-sm rounded-lg">
+        <ResultsHeader topicsCount={loading ? 5 : topics.length} />
+        {resultsContent}
+      </Card>
     </div>
   );
 }

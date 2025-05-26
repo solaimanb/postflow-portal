@@ -7,6 +7,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useEffect, useState } from "react";
 import { GlobeLock } from "lucide-react";
+import { Toaster } from "sonner";
 
 export default function ProtectedLayout({
   children,
@@ -39,21 +40,23 @@ export default function ProtectedLayout({
         open={sidebarOpen}
         onOpenChange={handleSidebarOpenChange}
       >
-        <div className="flex min-h-screen bg-background">
+        <div className="flex bg-background w-full">
           <AppSidebar onLogout={handleLogout} />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 overflow-auto w-full">
             <div className="flex lg:hidden items-center justify-between p-4 border-b">
               <div className="flex items-center gap-1">
                 <GlobeLock className="h-6 w-6 shrink-0" />
-                <h1 className="text-xl font-black tracking-tight">
-                  PORTAL
-                </h1>
+                <h1 className="text-xl font-black tracking-tight">PORTAL</h1>
               </div>
               <SidebarTrigger />
             </div>
-            <div className="p-6">{children}</div>
+
+            <div className="min-h-screen p-6 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+              {children}
+            </div>
           </main>
         </div>
+        <Toaster richColors />
       </SidebarProvider>
     </ProtectedRoute>
   );
