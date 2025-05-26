@@ -138,7 +138,7 @@ const updateLoginAttempts = (email: string, success: boolean): void => {
 };
 
 // ======================================================
-// Authentication API - Authenticates a user with 
+// Authentication API - Authenticates a user with
 // email and password
 // ======================================================
 export const loginWithEmailAndPassword = async (

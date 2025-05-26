@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { processScheduledPosts } from "@/lib/services/facebook";
+import { processScheduledPosts } from "@/lib/services/facebook/posts/schedule";
+import { getCurrentUser } from "@/lib/services/auth";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 const SCHEDULED_POST_CHECK_INTERVAL = 20000;
 
 export default function DashboardPage() {
   const [scheduledPostCount, setScheduledPostCount] = useState(0);
+  const router = useRouter();
 
   useEffect(() => {
     const updateScheduledPostCount = () => {
@@ -29,8 +33,15 @@ export default function DashboardPage() {
     };
 
     const checkScheduledPosts = async () => {
+      const user = getCurrentUser();
+      if (!user) {
+        toast.error("You must be logged in to check scheduled posts");
+        router.push("/login");
+        return;
+      }
+
       try {
-        await processScheduledPosts();
+        await processScheduledPosts(user.email);
         updateScheduledPostCount();
       } catch (error) {
         console.error("Error checking scheduled posts:", error);
@@ -52,7 +63,7 @@ export default function DashboardPage() {
       clearInterval(checkInterval);
       clearInterval(countInterval);
     };
-  }, []);
+  }, [router]);
 
   return (
     <div className="space-y-6">

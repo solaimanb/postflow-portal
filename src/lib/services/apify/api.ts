@@ -1,8 +1,8 @@
 import config from "./config";
 import type {
   TopicSearchParams,
-  TopicSearchResult,
   ActorRunInput,
+  Topic,
 } from "./types";
 
 /**
@@ -17,12 +17,13 @@ const prepareActorInput = (
     return {
       query: params.keyword,
       search_type: "posts",
-      max_posts: params.maxItems,
-      limit: params.maxItems,
-      maxResults: params.maxItems,
+      max_posts: params.maxItems || 20,
+      limit: params.maxItems || 20,
+      maxResults: params.maxItems || 20,
       ...(params.startDate && { dateFrom: params.startDate }),
       ...(params.endDate && { dateTo: params.endDate }),
       ...(params.language && { language: params.language }),
+      proxyConfiguration: { useApifyProxy: true },
     };
   }
 
@@ -78,7 +79,7 @@ const transformActorOutput = (
   actorId: string,
   rawData: Record<string, unknown>[],
   params: TopicSearchParams
-): TopicSearchResult[] => {
+): Topic[] => {
   const limitedData = params.maxItems
     ? rawData.slice(0, params.maxItems)
     : rawData;
@@ -186,7 +187,7 @@ const transformActorOutput = (
 
   // Default transformation
   return limitedData.map((item: Record<string, unknown>, index: number) => ({
-    id: `apify-${index}-${Date.now()}`,
+    id: `topic-${index}-${Date.now()}`,
     topic:
       (item.title as string) || (item.topic as string) || `Topic ${index + 1}`,
     date: (item.date as string) || new Date().toISOString(),
@@ -201,7 +202,7 @@ const transformActorOutput = (
  */
 export const fetchTopics = async (
   params: TopicSearchParams
-): Promise<TopicSearchResult[]> => {
+): Promise<Topic[]> => {
   try {
     const apiKey = config.apiKey;
     if (!apiKey) {
@@ -219,37 +220,58 @@ export const fetchTopics = async (
     const isProduction =
       typeof window !== "undefined" && window.location.hostname !== "localhost";
 
-    let apiUrl: string;
-    if (isProduction) {
-      apiUrl = `${config.baseUrl}/acts/${actorId}/runs`;
-    } else {
-      apiUrl = "/api/apify/search";
-    }
+    // Make the appropriate API call based on environment
+    const response = isProduction
+      ? await fetch(`https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${apiKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(runInput),
+        })
+      : await fetch("/api/apify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            endpoint: `acts/${actorId}/run-sync-get-dataset-items`,
+            method: "POST",
+            payload: runInput,
+            token: apiKey,
+          }),
+        });
 
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(isProduction && { Authorization: `Bearer ${apiKey}` }),
-      },
-      body: JSON.stringify(runInput),
-    });
+    // Get response text first
+    const responseText = await response.text();
+    console.log(`Raw dataset response: ${responseText}`);
 
+    // Then check if response was ok
     if (!response.ok) {
-      throw new Error(`Apify API error: ${response.statusText}`);
+      try {
+        const errorData = JSON.parse(responseText);
+        console.error("Apify API error response:", JSON.stringify(errorData));
+        throw new Error(`Apify API error: ${JSON.stringify(errorData)}`);
+      } catch {
+        throw new Error(`Apify API error: ${response.status} - ${responseText.substring(0, 100)}`);
+      }
     }
 
-    const data = await response.json();
-    console.log("Apify raw response:", data);
+    let rawTopics;
+    try {
+      rawTopics = JSON.parse(responseText);
+    } catch (e) {
+      console.error("Error parsing dataset response as JSON:", e);
+      console.log("Full response text:", responseText);
+      throw new Error("Failed to parse dataset response as JSON");
+    }
 
-    // Transform the data based on the actor used
-    const transformedData = transformActorOutput(
-      actorId,
-      Array.isArray(data) ? data : data.items || [],
-      params
-    );
+    if (!rawTopics || !Array.isArray(rawTopics) || rawTopics.length === 0) {
+      console.log("No topics found in Apify dataset or invalid data format");
+      console.log("Raw response:", JSON.stringify(rawTopics));
+      return [];
+    }
 
-    return transformedData;
+    console.log(`Retrieved ${rawTopics.length} items from Apify dataset`);
+    console.log("Sample item:", JSON.stringify(rawTopics[0]).substring(0, 200) + "...");
+
+    return transformActorOutput(actorId, rawTopics, params);
   } catch (error) {
     console.error("Error fetching topics from Apify:", error);
     throw error;

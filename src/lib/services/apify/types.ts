@@ -1,31 +1,31 @@
 export interface TopicSearchParams {
   keyword: string;
-  maxItems?: number;
   startDate?: string;
   endDate?: string;
+  maxItems?: number;
   language?: string;
 }
 
-export interface TopicSearchResult {
+export interface Topic {
   id: string;
   topic: string;
+  text?: string;
   date: string;
+  time?: string;
   popularityScore: number;
   keywords: string[];
   relatedTopics: string[];
-  url?: string;
-  text?: string;
-  pageName?: string;
-  pageUrl?: string;
-  postId?: string;
-  type?: string;
-  videoUrl?: string;
-  videoThumbnail?: string;
-  imageUrl?: string;
-  time?: string;
   likes?: number;
   comments?: number;
   shares?: number;
+  url?: string;
+  pageName?: string;
+  postId?: string;
+  type?: string;
+  pageUrl?: string;
+  videoUrl?: string;
+  videoThumbnail?: string;
+  imageUrl?: string;
 }
 
 export interface ActorRunInput {

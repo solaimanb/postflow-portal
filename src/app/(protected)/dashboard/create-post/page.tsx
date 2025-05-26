@@ -4,7 +4,10 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { getCurrentUser } from "@/lib/services/auth";
-import { getUserPages, createPost } from "@/lib/services/facebook";
+import { getUserPages } from "@/lib/services/facebook/pages";
+import { createFacebookPost } from "@/lib/services/facebook/posts/create";
+import { FacebookPostError } from "@/lib/services/facebook/posts/create";
+import { FacebookTokenError } from "@/lib/services/facebook/api/token";
 import type { FacebookPage, PostScheduleParams, FacebookPost } from "@/types";
 
 import { PostHeader } from "./_components/post-header";
@@ -51,7 +54,7 @@ export default function CreatePostPage() {
     if (!user) return;
 
     try {
-      const postIds = await createPost(user.email, {
+      const postIds = await createFacebookPost(user.email, {
         id: "",
         content: params.content,
         pageIds: params.pageIds,
@@ -74,22 +77,29 @@ export default function CreatePostPage() {
     } catch (error) {
       console.error("Error publishing post:", error);
 
-      if (error instanceof Error) {
-        if (error.message.includes("permission")) {
-          setShowPermissionError(true);
-          toast.error("Permission Error", {
-            description: "Your app is missing required permissions.",
-          });
-        } else if (error.message.includes("Page not found")) {
+      if (error instanceof FacebookTokenError) {
+        setShowPermissionError(true);
+        toast.error("Permission Error", {
+          description: "Your app is missing required permissions.",
+        });
+      } else if (error instanceof FacebookPostError) {
+        if (error.code === "PAGE_NOT_FOUND") {
           toast.error("Page not found", {
             description:
-              "The Facebook page ID may be incorrect or your app doesn't have access to it.",
+              "One or more selected pages were not found or are not accessible.",
           });
         } else {
           toast.error("Failed to publish", {
             description: error.message,
           });
         }
+      } else {
+        toast.error("Failed to publish", {
+          description:
+            error instanceof Error
+              ? error.message
+              : "An unknown error occurred",
+        });
       }
     }
   };
@@ -99,7 +109,7 @@ export default function CreatePostPage() {
     if (!user || !params.scheduledFor) return;
 
     try {
-      await createPost(user.email, {
+      await createFacebookPost(user.email, {
         id: "",
         content: params.content,
         pageIds: params.pageIds,
@@ -119,10 +129,23 @@ export default function CreatePostPage() {
       refreshScheduledPosts();
     } catch (error) {
       console.error("Error scheduling post:", error);
-      toast.error("Failed to schedule", {
-        description:
-          error instanceof Error ? error.message : "An unknown error occurred",
-      });
+      if (error instanceof FacebookTokenError) {
+        setShowPermissionError(true);
+        toast.error("Permission Error", {
+          description: "Your app is missing required permissions.",
+        });
+      } else if (error instanceof FacebookPostError) {
+        toast.error("Failed to schedule", {
+          description: error.message,
+        });
+      } else {
+        toast.error("Failed to schedule", {
+          description:
+            error instanceof Error
+              ? error.message
+              : "An unknown error occurred",
+        });
+      }
     }
   };
 

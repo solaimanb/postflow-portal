@@ -1,0 +1,1 @@
+export const FB_API_VERSION = 'v18.0'; // Latest stable version as of now 

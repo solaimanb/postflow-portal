@@ -7,8 +7,8 @@ import { CheckCircle, AlertCircle, Info } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { searchTopics } from "@/lib/services/facebook";
-import type { TopicSearchParams } from "@/types";
+import { fetchTopics } from "@/lib/services/apify";
+import type { TopicSearchParams } from "@/lib/services/apify/types";
 import TopicTable from "@/components/TopicTable";
 
 import { SearchHeader } from "./_components/search-header";
@@ -53,7 +53,7 @@ export default function TopicSearchPage() {
     queryFn: async () => {
       if (!currentSearchParams) return [];
       try {
-        const result = await searchTopics(currentSearchParams);
+        const result = await fetchTopics(currentSearchParams);
         if (result.length === 0) {
           toast("No topics found", {
             description: "No topics found for the given search criteria.",
@@ -109,7 +109,7 @@ export default function TopicSearchPage() {
 
       queryClient.fetchQuery({
         queryKey: ["topics", params],
-        queryFn: () => searchTopics(params),
+        queryFn: () => fetchTopics(params),
       });
     },
     [router, queryClient]

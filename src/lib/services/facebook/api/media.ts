@@ -1,4 +1,5 @@
 import { FacebookMediaUploadCallbacks } from "../types";
+import { FacebookTokenError } from './token';
 
 /**
  * Helper function to detect if a string is a URL
@@ -9,6 +10,46 @@ const isUrl = (str: string): boolean => {
     return true;
   } catch {
     return false;
+  }
+};
+
+export class FacebookMediaError extends Error {
+  constructor(message: string, public code?: string) {
+    super(message);
+    this.name = 'FacebookMediaError';
+  }
+}
+
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
+const ALLOWED_VIDEO_TYPES = [
+  'video/mp4',
+  'video/quicktime',
+  'video/x-ms-wmv',
+  'video/x-msvideo',
+];
+const MAX_IMAGE_SIZE = 4 * 1024 * 1024; // 4MB
+const MAX_VIDEO_SIZE = 1024 * 1024 * 1024; // 1GB
+
+export const validateMediaFile = (file: File) => {
+  if (ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    if (file.size > MAX_IMAGE_SIZE) {
+      throw new FacebookMediaError(
+        `Image size exceeds maximum allowed size of ${MAX_IMAGE_SIZE} bytes`,
+        'IMAGE_TOO_LARGE'
+      );
+    }
+  } else if (ALLOWED_VIDEO_TYPES.includes(file.type)) {
+    if (file.size > MAX_VIDEO_SIZE) {
+      throw new FacebookMediaError(
+        `Video size exceeds maximum allowed size of ${MAX_VIDEO_SIZE} bytes`,
+        'VIDEO_TOO_LARGE'
+      );
+    }
+  } else {
+    throw new FacebookMediaError(
+      `Unsupported media type: ${file.type}`,
+      'UNSUPPORTED_MEDIA_TYPE'
+    );
   }
 };
 
@@ -184,32 +225,34 @@ export const uploadVideoFile = async (
 export const uploadMedia = async (
   pageId: string,
   accessToken: string,
-  media: string | File,
-  content?: string,
-  callbacks?: FacebookMediaUploadCallbacks
+  media: File | string
 ): Promise<string> => {
-  if (typeof media === "string") {
-    if (isUrl(media)) {
+  try {
+    if (typeof media === 'string') {
+      if (!isUrl(media)) {
+        throw new FacebookMediaError('Invalid media URL', 'INVALID_URL');
+      }
       return await uploadImageFromUrl(pageId, accessToken, media);
-    } else {
-      throw new Error("Invalid media URL format");
     }
-  } else if (media instanceof File) {
-    // Check if the file is a video based on its type
-    if (media.type.startsWith("video/")) {
-      return await uploadVideoFile(
-        pageId,
-        accessToken,
-        media,
-        content,
-        callbacks
-      );
-    } else {
+
+    validateMediaFile(media);
+
+    if (ALLOWED_IMAGE_TYPES.includes(media.type)) {
       return await uploadImageFile(pageId, accessToken, media);
+    } else if (ALLOWED_VIDEO_TYPES.includes(media.type)) {
+      return await uploadVideoFile(pageId, accessToken, media);
     }
-  } else {
-    throw new Error(
-      "Unsupported media type. Must be URL string or File object"
+
+    throw new FacebookMediaError(
+      `Unsupported media type: ${media.type}`,
+      'UNSUPPORTED_MEDIA_TYPE'
+    );
+  } catch (error) {
+    if (error instanceof FacebookMediaError || error instanceof FacebookTokenError) {
+      throw error;
+    }
+    throw new FacebookMediaError(
+      error instanceof Error ? error.message : 'Failed to upload media'
     );
   }
 };

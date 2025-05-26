@@ -1,9 +1,17 @@
-import { uploadMedia } from "./media";
+import { uploadMedia, uploadVideoFile } from "./media";
 import { getPageAccessToken, verifyTokenPermissions } from "./token";
 import type { FacebookMediaUploadCallbacks } from "../types";
 
 /**
- * Posts content to a Facebook page using Graph API
+ * Creates a post on a Facebook page using the Graph API.
+ * Supports text-only posts and posts with media attachments (images, videos, or URLs).
+ *
+ * @param pageId - The ID of the Facebook page to post to
+ * @param userAccessToken - The user's access token with page management permissions
+ * @param content - The text content of the post
+ * @param mediaItems - Optional array of media items (File objects or URLs)
+ * @param callbacks - Optional callbacks for tracking media upload progress
+ * @returns Promise resolving to the created post ID
  */
 export const createPost = async (
   pageId: string,
@@ -13,110 +21,155 @@ export const createPost = async (
   callbacks?: FacebookMediaUploadCallbacks
 ): Promise<string> => {
   try {
-    // First, get a page access token
-    console.log("Getting page access token...");
-    const pageAccessToken = await getPageAccessToken(pageId, userAccessToken);
-    console.log("Successfully got page access token");
+    // Step 1: Get and verify page access token
+    const pageAccessToken = await getPageToken(pageId, userAccessToken);
+    await verifyTokenPermissions(pageAccessToken, [], "PAGE");
 
-    // Verify token permissions
-    const tokenInfo = await verifyTokenPermissions(pageAccessToken);
-    if (!tokenInfo.isValid) {
-      throw new Error(tokenInfo.error || "Invalid token");
-    }
-
-    // Check if we have media items
-    if (mediaItems && mediaItems.length > 0) {
-      const mediaItem = mediaItems[0];
-
-      // Handle media upload
-      const mediaId = await uploadMedia(
+    // Step 2: Handle media upload if present
+    if (mediaItems?.length) {
+      return await createMediaPost(
         pageId,
         pageAccessToken,
-        mediaItem,
         content,
+        mediaItems[0],
         callbacks
       );
-
-      // If it's a video, the upload automatically creates a post
-      if (mediaItem instanceof File && mediaItem.type.startsWith("video/")) {
-        return mediaId;
-      }
-
-      // Create post with media
-      const params = new URLSearchParams();
-      params.append("message", content);
-      params.append("attached_media[0]", `{"media_fbid":"${mediaId}"}`);
-      params.append("access_token", pageAccessToken);
-
-      const response = await fetch(
-        `https://graph.facebook.com/v22.0/${pageId}/feed`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: params,
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Facebook API Error Response:", errorData);
-        throw new Error(
-          errorData.error?.message || "Failed to create post with media"
-        );
-      }
-
-      const data = await response.json();
-      return data.id;
     }
 
-    // Text-only post
-    const params = new URLSearchParams();
-    params.append("message", content);
-    params.append("access_token", pageAccessToken);
-
-    console.log("Attempting to create post...");
-    const response = await fetch(
-      `https://graph.facebook.com/v22.0/${pageId}/feed`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: params,
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error("Facebook API Error Response:", errorData);
-      const error = errorData.error;
-
-      if (error?.code === 190) {
-        throw new Error(
-          "Invalid or expired access token. Please generate a new Page Access Token from Graph API Explorer."
-        );
-      } else if (error?.code === 10 || error?.code === 100) {
-        throw new Error(
-          "Missing required permissions. Please ensure you have admin access to this page and try again."
-        );
-      } else if (error?.code === 368) {
-        throw new Error(
-          "Rate limit exceeded. Please wait a few minutes and try again."
-        );
-      } else {
-        throw new Error(
-          error?.message || "Failed to create post. Check console for details."
-        );
-      }
-    }
-
-    console.log("Post created successfully");
-    const data = await response.json();
-    return data.id;
+    // Step 3: Create text-only post
+    return await createTextPost(pageId, pageAccessToken, content);
   } catch (error) {
     console.error("Error in createPost:", error);
     throw error;
   }
 };
+
+/**
+ * Helper function to get and verify page access token
+ */
+async function getPageToken(
+  pageId: string,
+  userAccessToken: string
+): Promise<string> {
+  console.log("Getting page access token...");
+  const pageAccessToken = await getPageAccessToken(pageId, userAccessToken);
+  console.log("Successfully got page access token");
+  return pageAccessToken;
+}
+
+/**
+ * Creates a post with media attachment (image, video, or URL)
+ */
+async function createMediaPost(
+  pageId: string,
+  pageAccessToken: string,
+  content: string,
+  mediaItem: string | File,
+  callbacks?: FacebookMediaUploadCallbacks
+): Promise<string> {
+  // Handle video uploads separately as they create posts automatically
+  if (mediaItem instanceof File && mediaItem.type.startsWith("video/")) {
+    return await uploadVideoFile(
+      pageId,
+      pageAccessToken,
+      mediaItem,
+      content,
+      callbacks
+    );
+  }
+
+  // Handle image/URL uploads
+  const mediaId = await uploadMedia(pageId, pageAccessToken, mediaItem);
+  return await attachMediaToPost(pageId, pageAccessToken, content, mediaId);
+}
+
+/**
+ * Creates a text-only post
+ */
+async function createTextPost(
+  pageId: string,
+  pageAccessToken: string,
+  content: string
+): Promise<string> {
+  console.log("Creating text-only post...");
+  const params = new URLSearchParams();
+  params.append("message", content);
+  params.append("access_token", pageAccessToken);
+
+  const response = await fetch(
+    `https://graph.facebook.com/v22.0/${pageId}/feed`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params,
+    }
+  );
+
+  await handleApiResponse(response);
+  const data = await response.json();
+  console.log("Post created successfully");
+  return data.id;
+}
+
+/**
+ * Attaches uploaded media to a new post
+ */
+async function attachMediaToPost(
+  pageId: string,
+  pageAccessToken: string,
+  content: string,
+  mediaId: string
+): Promise<string> {
+  const params = new URLSearchParams();
+  params.append("message", content);
+  params.append("attached_media[0]", `{"media_fbid":"${mediaId}"}`);
+  params.append("access_token", pageAccessToken);
+
+  const response = await fetch(
+    `https://graph.facebook.com/v22.0/${pageId}/feed`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params,
+    }
+  );
+
+  await handleApiResponse(response);
+  const data = await response.json();
+  return data.id;
+}
+
+/**
+ * Handles Facebook API response and throws appropriate errors
+ */
+async function handleApiResponse(response: Response): Promise<void> {
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error("Facebook API Error Response:", errorData);
+    const error = errorData.error;
+
+    switch (error?.code) {
+      case 190:
+        throw new Error(
+          "Invalid or expired access token. Please generate a new Page Access Token from Graph API Explorer."
+        );
+      case 10:
+      case 100:
+        throw new Error(
+          "Missing required permissions. Please ensure you have admin access to this page and try again."
+        );
+      case 368:
+        throw new Error(
+          "Rate limit exceeded. Please wait a few minutes and try again."
+        );
+      default:
+        throw new Error(
+          error?.message || "Failed to create post. Check console for details."
+        );
+    }
+  }
+}

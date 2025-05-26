@@ -32,7 +32,7 @@ export function downloadTopicsAsCSV(topics: FacebookTopic[]) {
     escapeCSV(topic.text || topic.topic || ""),
     escapeCSV(topic.pageName || topic.relatedTopics?.[0] || "Unknown"),
     escapeCSV(new Date(topic.time || topic.date).toLocaleString()),
-    escapeCSV(topic.likes || 0),
+    escapeCSV(topic.like || 0),
     escapeCSV(topic.comments || 0),
     escapeCSV(topic.shares || 0),
     escapeCSV(topic.type || ""),

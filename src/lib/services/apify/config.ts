@@ -5,8 +5,8 @@ interface ApifyConfig {
 }
 
 const config: ApifyConfig = {
-  apiKey: process.env.NEXT_PUBLIC_APIFY_API_KEY || "",
-  actorId: process.env.NEXT_PUBLIC_APIFY_ACTOR_ID || "blf62maenLRO8Rsfv",
+  apiKey: process.env.NEXT_PUBLIC_APIFY_API_KEY!,
+  actorId: process.env.NEXT_PUBLIC_APIFY_ACTOR_ID!,
   baseUrl: "https://api.apify.com/v2",
 };
 

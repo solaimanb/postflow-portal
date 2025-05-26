@@ -6,38 +6,6 @@ export interface User {
   twoFactorEnabled: boolean;
 }
 
-export interface FacebookTopic {
-  id: string;
-  topic: string;
-  text?: string;
-  date: string;
-  time?: string;
-  popularityScore: number;
-  keywords: string[];
-  relatedTopics: string[];
-  like?: number;
-  comments?: number;
-  shares?: number;
-  url?: string;
-  pageName?: string;
-  postId?: string;
-  type?: string;
-  pageUrl?: string;
-  videoUrl?: string;
-  videoThumbnail?: string;
-  imageUrl?: string;
-}
-
-export interface TopicSearchParams {
-  keyword: string;
-  fromDate?: string;
-  toDate?: string;
-  startDate?: string;
-  endDate?: string;
-  maxItems?: number;
-  language?: string;
-}
-
 export interface FacebookPage {
   id: string;
   name: string;

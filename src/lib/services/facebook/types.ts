@@ -8,8 +8,9 @@ export interface FacebookMediaUploadCallbacks {
 }
 
 export interface FacebookTokenInfo {
-  type: "USER" | "PAGE";
-  permissions?: string[];
-  isValid: boolean;
-  error?: string;
+  userId: string;
+  appId: string;
+  type: string;
+  permissions: string[];
+  expiresAt: number;
 }
