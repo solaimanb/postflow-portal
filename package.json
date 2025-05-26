@@ -8,7 +8,6 @@
     "start": "next start",
     "lint": "next lint",
     "deploy": "next build && firebase deploy",
-    "deploy:with-env": "NEXT_PUBLIC_APIFY_API_KEY=apify_api_dvFCDo7YOhl5HvNbcCGLarLZWri3Id2qcKmx NEXT_PUBLIC_APIFY_ACTOR_ID=danek~facebook-search-ppr next build && firebase deploy",
     "setup-env": "node setup-firebase-env.js",
     "deploy:full": "yarn setup-env && next build && firebase deploy"
   },

@@ -65,22 +65,25 @@ If you encounter permission errors when posting, the app will provide specific g
 When uploading videos to Facebook pages, the application uses Facebook's Resumable Upload API as required by the platform. For video uploads to work correctly:
 
 1. **Environment Setup**: Ensure your `.env.local` file includes:
+
    ```
    NEXT_PUBLIC_FACEBOOK_APP_ID=your_app_id_here
    ```
 
 2. **Video Specifications**:
+
    - **File Type**: .mp4 (recommended)
    - **Aspect Ratio**: Supported ratios between 16:9 and 9:16
    - **Resolution**: Minimum 540x960 pixels (1080x1920 recommended)
-   - **Duration**: 3-90 seconds (max 60 seconds if published as a story)
    - **Video Settings**: H.264 or H.265 compression, fixed frame rate
    - **Audio Settings**: 128kbps+ bitrate, stereo channels, AAC codec
 
 3. **Permissions**: In addition to the permissions above, ensure your app has:
+
    - `publish_video` permission specifically granted
 
 4. **Upload Process**: The app handles the 3-step process required by Facebook:
+
    - Initializes an upload session with your App ID
    - Uploads the video file to Facebook's servers via a server-side proxy to avoid CORS issues
    - Publishes the video with the file handle
@@ -125,3 +128,52 @@ The application is deployed on Firebase Hosting. Access details will be provided
 ## Documentation
 
 For detailed usage instructions, please refer to the admin documentation.
+
+## Environment Variables Setup
+
+The application requires several environment variables to be configured. Create a `.env.local` file in the root directory using the following template:
+
+```bash
+# Firebase Configuration
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_FIREBASE_API_KEY=your-firebase-api-key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your-sender-id
+NEXT_PUBLIC_FIREBASE_APP_ID=your-app-id
+
+# Facebook Configuration
+NEXT_PUBLIC_FACEBOOK_APP_ID=your-facebook-app-id
+NEXT_PUBLIC_ACCESS_TOKEN=your-facebook-access-token
+
+# Apify Configuration
+NEXT_PUBLIC_APIFY_API_KEY=your-apify-api-key
+NEXT_PUBLIC_APIFY_ACTOR_ID=danek~facebook-search-ppr
+```
+
+To obtain these values:
+
+1. **Firebase Configuration**:
+
+   - Create a project in [Firebase Console](https://console.firebase.google.com)
+   - Go to Project Settings > General
+   - Create a web app if you haven't already
+   - Copy the configuration values from the Firebase SDK snippet
+
+2. **Facebook Configuration**:
+
+   - Create an app in [Facebook Developers](https://developers.facebook.com)
+   - Get your App ID from the app settings
+   - Generate an access token with required permissions
+
+3. **Apify Configuration**:
+   - Sign up for an [Apify](https://apify.com) account
+   - Get your API key from account settings
+   - Use the default actor ID or choose an alternative one
+
+For security:
+
+- Never commit your `.env.local` file to version control
+- Keep your credentials secure and private
+- Rotate access tokens periodically
+- Use different credentials for development and production

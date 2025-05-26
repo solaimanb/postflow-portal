@@ -167,7 +167,7 @@ export default function TopicSearchPage() {
     }
 
     return (
-      <CardContent className="p-0">
+      <CardContent>
         <div className="overflow-x-auto w-full rounded-lg bg-background/40 backdrop-blur-[2px]">
           <DataTable
             columns={getColumns}
@@ -199,7 +199,7 @@ export default function TopicSearchPage() {
           onClear={handleClearSearch}
           hasResults={topics.length > 0}
         />
-        <CardContent>
+        <CardContent className="p-6">
           <TopicSearch
             onSearch={handleSearch}
             isLoading={isLoading}
