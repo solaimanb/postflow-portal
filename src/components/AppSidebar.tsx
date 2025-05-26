@@ -4,6 +4,7 @@ import {
   MessageSquare,
   LogOut,
   LayoutGrid,
+  GlobeLock,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -55,9 +56,10 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon" className="border-r bg-sidebar">
       <SidebarHeader className="border-b border-sidebar-border">
-        <div className="flex items-center px-4 py-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2">
-          <h2 className="text-lg font-semibold tracking-tight text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-            FB Topics Portal
+        <div className="flex items-center px-2 py-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2 gap-1">
+          <GlobeLock className="shrink-0 group-data-[collapsible=icon]:hidden" />
+          <h2 className="text-xl font-black tracking-tight text-sidebar-foreground group-data-[collapsible=icon]:hidden">
+            PORTAL
           </h2>
           <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:ml-0" />
         </div>
@@ -100,7 +102,7 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border px-2 py-2">
+      <SidebarFooter className="border-t border-sidebar-border px-2 py-0">
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
