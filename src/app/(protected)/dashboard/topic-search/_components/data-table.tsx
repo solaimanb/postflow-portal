@@ -29,25 +29,30 @@ import { TopicDialog } from "./topic-dialog";
 import { Topic } from "@/lib/services/apify/types";
 
 interface DataTableProps<TData, TValue> {
-  columns: (props: { onViewDetails: (topic: Topic) => void }) => ColumnDef<TData, TValue>[];
+  columns: () => ColumnDef<TData, TValue>[];
   data: TData[];
   onDownloadCSV?: () => void;
+  onRowClick?: (data: TData) => void;
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
   onDownloadCSV,
+  onRowClick,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    []
+  );
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
   const [selectedTopic, setSelectedTopic] = React.useState<Topic | null>(null);
 
   const table = useReactTable({
     data,
-    columns: columns({ onViewDetails: (topic) => setSelectedTopic(topic) }),
+    columns: columns(),
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
@@ -69,17 +74,21 @@ export function DataTable<TData, TValue>({
     },
   });
 
-  const handleRowClick = React.useCallback((e: React.MouseEvent, topic: Topic) => {
-    const target = e.target as HTMLElement;
-    if (
-      target.closest('[role="checkbox"]') ||
-      target.closest('[role="menuitem"]') ||
-      target.closest('button')
-    ) {
-      return;
-    }
-    setSelectedTopic(topic);
-  }, []);
+  const handleRowClick = React.useCallback(
+    (e: React.MouseEvent, data: TData) => {
+      // Don't trigger row click if clicking on checkbox or actions
+      const target = e.target as HTMLElement;
+      if (
+        target.closest('[role="checkbox"]') ||
+        target.closest('[role="menuitem"]') ||
+        target.closest("button")
+      ) {
+        return;
+      }
+      onRowClick?.(data);
+    },
+    [onRowClick]
+  );
 
   return (
     <div className="space-y-4">
@@ -109,18 +118,24 @@ export function DataTable<TData, TValue>({
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
                   className="cursor-pointer hover:bg-muted/50"
-                  onClick={(e) => handleRowClick(e, row.original as Topic)}
+                  onClick={(e) => handleRowClick(e, row.original)}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
+                <TableCell
+                  colSpan={columns().length}
+                  className="h-24 text-center"
+                >
                   No results.
                 </TableCell>
               </TableRow>
@@ -129,7 +144,7 @@ export function DataTable<TData, TValue>({
         </Table>
       </div>
       <DataTablePagination table={table} />
-      <TopicDialog 
+      <TopicDialog
         topic={selectedTopic}
         open={!!selectedTopic}
         onOpenChange={(open) => !open && setSelectedTopic(null)}

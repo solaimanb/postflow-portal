@@ -7,7 +7,6 @@ import {
   Link as LinkIcon,
   Copy,
   Facebook,
-  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,16 +21,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { Topic } from "@/lib/services/apify/types";
 import { toast } from "sonner";
 
-interface TopicColumnProps {
-  onViewDetails: (topic: Topic) => void;
-}
-
 /**
  * Table column definitions for the Topic Search results
  */
-export const getColumns = ({
-  onViewDetails,
-}: TopicColumnProps): ColumnDef<Topic>[] => [
+export const getColumns = (): ColumnDef<Topic>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -189,14 +182,6 @@ export const getColumns = ({
           <DropdownMenuContent align="end" className="text-xs">
             <DropdownMenuLabel>Actions</DropdownMenuLabel>
             <DropdownMenuItem
-              onClick={() => onViewDetails(topic)}
-              className="flex items-center"
-            >
-              <Eye className="mr-2 h-3 w-3" />
-              View Details
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
               onClick={handleCopyUrl}
               disabled={!topic.url}
               className="flex items-center"
@@ -204,6 +189,7 @@ export const getColumns = ({
               <Copy className="mr-2 h-3 w-3" />
               Copy URL
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => window.open(topic.url, "_blank")}
               disabled={!topic.url}

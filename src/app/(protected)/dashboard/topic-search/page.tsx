@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle, AlertCircle, Info } from "lucide-react";
 import { toast } from "sonner";
+import React from "react";
 
 import { SearchHeader } from "./_components/search-header";
 import { ResultsHeader } from "./_components/results-header";
@@ -14,6 +15,7 @@ import { ResultsSkeleton } from "./_components/results-skeleton";
 import { TopicSearch } from "./_components/topic-search";
 import { DataTable } from "./_components/data-table";
 import { getColumns } from "./_components/columns";
+import { TopicDialog } from "./_components/topic-dialog";
 
 import { fetchTopics } from "@/lib/services/apify";
 import type { TopicSearchParams, Topic } from "@/lib/services/apify/types";
@@ -42,6 +44,7 @@ export default function TopicSearchPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const [selectedTopic, setSelectedTopic] = React.useState<Topic | null>(null);
 
   /**
    * Parse search parameters from URL
@@ -164,17 +167,29 @@ export default function TopicSearchPage() {
     }
 
     return (
-      <CardContent>
+      <CardContent className="p-0">
         <div className="overflow-x-auto w-full rounded-lg bg-background/40 backdrop-blur-[2px]">
           <DataTable
             columns={getColumns}
             data={topics}
             onDownloadCSV={handleDownloadCSV}
+            onRowClick={setSelectedTopic}
           />
         </div>
+        <TopicDialog
+          topic={selectedTopic}
+          open={!!selectedTopic}
+          onOpenChange={(open) => !open && setSelectedTopic(null)}
+        />
       </CardContent>
     );
-  }, [isLoading, topics, currentSearchParams, handleDownloadCSV]);
+  }, [
+    isLoading,
+    topics,
+    currentSearchParams,
+    handleDownloadCSV,
+    selectedTopic,
+  ]);
 
   return (
     <div className="h-full w-full space-y-6">
