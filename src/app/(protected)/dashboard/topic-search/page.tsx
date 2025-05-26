@@ -2,24 +2,31 @@
 
 import { useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle, AlertCircle, Info } from "lucide-react";
 import { toast } from "sonner";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-
-import { fetchTopics } from "@/lib/services/apify";
-import type { TopicSearchParams } from "@/lib/services/apify/types";
-import TopicTable from "@/components/TopicTable";
 
 import { SearchHeader } from "./_components/search-header";
 import { ResultsHeader } from "./_components/results-header";
 import { EmptyState } from "./_components/empty-state";
 import { ResultsSkeleton } from "./_components/results-skeleton";
 import { TopicSearch } from "./_components/topic-search";
+import { DataTable } from "./_components/data-table";
+import { getColumns } from "./_components/columns";
 
+import { fetchTopics } from "@/lib/services/apify";
+import type { TopicSearchParams, Topic } from "@/lib/services/apify/types";
 import { downloadTopicsAsCSV } from "./_components/utils";
 
-const ERROR_MESSAGES = {
+const QUERY_CONFIG = {
+  gcTime: 1000 * 60 * 30, // 30 minutes
+  staleTime: 1000 * 60 * 5, // 5 minutes
+} as const;
+
+type ErrorType = "API_KEY" | "SUBSCRIPTION" | "DEFAULT";
+
+const ERROR_MESSAGES: Record<ErrorType, string> = {
   API_KEY:
     "API key configuration error. Please check your environment variables.",
   SUBSCRIPTION:
@@ -27,12 +34,18 @@ const ERROR_MESSAGES = {
   DEFAULT: "Failed to search topics",
 };
 
+/**
+ * Topic Search Page Component
+ * Provides functionality to search and display Facebook topics
+ */
 export default function TopicSearchPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
-  // Parse search parameters from URL
+  /**
+   * Parse search parameters from URL
+   */
   const currentSearchParams: TopicSearchParams | null = useMemo(() => {
     const keyword = searchParams.get("keyword");
     if (!keyword) return null;
@@ -47,55 +60,34 @@ export default function TopicSearchPage() {
     };
   }, [searchParams]);
 
-  // Use React Query for data fetching and caching
+  /**
+   * Topic search query with React Query
+   */
   const { data: topics = [], isLoading } = useQuery({
     queryKey: ["topics", currentSearchParams],
     queryFn: async () => {
       if (!currentSearchParams) return [];
+
       try {
         const result = await fetchTopics(currentSearchParams);
-        if (result.length === 0) {
-          toast("No topics found", {
-            description: "No topics found for the given search criteria.",
-            icon: <Info className="h-4 w-4 text-foreground/70" />,
-          });
-        } else {
-          toast("Topics found", {
-            description: `Found ${result.length} topics for "${currentSearchParams.keyword}"`,
-            icon: <CheckCircle className="h-4 w-4 text-green-500/80" />,
-          });
-        }
+        handleSearchSuccess(result, currentSearchParams.keyword);
         return result;
       } catch (error) {
-        console.error("Error searching topics:", error);
-        let errorMessage = ERROR_MESSAGES.DEFAULT;
-
-        if (error instanceof Error) {
-          if (error.message.includes("API key not found")) {
-            errorMessage = ERROR_MESSAGES.API_KEY;
-          } else if (error.message.includes("requires a paid subscription")) {
-            errorMessage = ERROR_MESSAGES.SUBSCRIPTION;
-          } else {
-            errorMessage = error.message;
-          }
-        }
-
-        toast.error("Error", {
-          description: errorMessage,
-          icon: <AlertCircle className="h-4 w-4 text-destructive/80" />,
-        });
+        handleSearchError(error);
         throw error;
       }
     },
     enabled: false, // Never auto-fetch
-    gcTime: 1000 * 60 * 30, // 30 minutes
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    ...QUERY_CONFIG,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     retry: false,
   });
 
+  /**
+   * Event Handlers
+   */
   const handleSearch = useCallback(
     (params: TopicSearchParams) => {
       const searchQuery = new URLSearchParams();
@@ -106,7 +98,6 @@ export default function TopicSearchPage() {
         searchQuery.set("maxItems", params.maxItems.toString());
 
       router.push(`?${searchQuery.toString()}`);
-
       queryClient.fetchQuery({
         queryKey: ["topics", params],
         queryFn: () => fetchTopics(params),
@@ -125,6 +116,44 @@ export default function TopicSearchPage() {
     downloadTopicsAsCSV(topics);
   }, [topics]);
 
+  /**
+   * Helper functions for search results handling
+   */
+  const handleSearchSuccess = (result: Topic[], keyword: string) => {
+    if (result.length === 0) {
+      toast("No topics found", {
+        description: "No topics found for the given search criteria.",
+        icon: <Info className="h-4 w-4 text-foreground/70" />,
+      });
+    } else {
+      toast("Topics found", {
+        description: `Found ${result.length} topics for "${keyword}"`,
+        icon: <CheckCircle className="h-4 w-4 text-green-500/80" />,
+      });
+    }
+  };
+
+  const handleSearchError = (error: unknown) => {
+    console.error("Error searching topics:", error);
+    let errorType: ErrorType = "DEFAULT";
+
+    if (error instanceof Error) {
+      if (error.message.includes("API key not found")) {
+        errorType = "API_KEY";
+      } else if (error.message.includes("requires a paid subscription")) {
+        errorType = "SUBSCRIPTION";
+      }
+    }
+
+    toast.error("Error", {
+      description: ERROR_MESSAGES[errorType],
+      icon: <AlertCircle className="h-4 w-4 text-destructive/80" />,
+    });
+  };
+
+  /**
+   * Render content based on state
+   */
   const resultsContent = useMemo(() => {
     if (isLoading) {
       return <ResultsSkeleton />;
@@ -135,9 +164,13 @@ export default function TopicSearchPage() {
     }
 
     return (
-      <CardContent className="p-0">
+      <CardContent>
         <div className="overflow-x-auto w-full rounded-lg bg-background/40 backdrop-blur-[2px]">
-          <TopicTable topics={topics} onDownloadCSV={handleDownloadCSV} />
+          <DataTable
+            columns={getColumns}
+            data={topics}
+            onDownloadCSV={handleDownloadCSV}
+          />
         </div>
       </CardContent>
     );
@@ -145,6 +178,7 @@ export default function TopicSearchPage() {
 
   return (
     <div className="h-full w-full space-y-6">
+      {/* Search Form Card */}
       <Card className="border-0 shadow-sm bg-background/95 backdrop-blur-sm rounded-lg">
         <SearchHeader
           onClear={handleClearSearch}
@@ -159,6 +193,7 @@ export default function TopicSearchPage() {
         </CardContent>
       </Card>
 
+      {/* Results Card */}
       <Card className="border-0 shadow-sm bg-background/95 backdrop-blur-sm rounded-lg">
         <ResultsHeader topicsCount={isLoading ? 0 : topics.length} />
         {resultsContent}

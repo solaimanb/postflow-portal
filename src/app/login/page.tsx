@@ -11,7 +11,6 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  // Check if already logged in
   useEffect(() => {
     if (isLoggedIn()) {
       router.push("/dashboard");
@@ -25,7 +24,6 @@ export default function Login() {
 
     try {
       await loginWithEmailAndPassword(email, password);
-      // On successful login, redirect to dashboard
       router.push("/dashboard");
     } catch (err) {
       console.error("Login error:", err);

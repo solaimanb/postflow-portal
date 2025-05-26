@@ -1,5 +1,4 @@
 import React from "react";
-import { TopicSearchParams } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useForm } from "react-hook-form";
+import { TopicSearchParams } from "@/lib/services/apify";
 
 export interface TopicSearchProps {
   onSearch: (params: TopicSearchParams) => void;

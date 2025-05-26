@@ -1,6 +1,6 @@
-import { FacebookTopic } from "@/types";
+import { Topic } from "@/lib/services/apify";
 
-export function downloadTopicsAsCSV(topics: FacebookTopic[]) {
+export function downloadTopicsAsCSV(topics: Topic[]) {
   if (topics.length === 0) return;
 
   const escapeCSV = (field: string | number) => {
@@ -32,7 +32,7 @@ export function downloadTopicsAsCSV(topics: FacebookTopic[]) {
     escapeCSV(topic.text || topic.topic || ""),
     escapeCSV(topic.pageName || topic.relatedTopics?.[0] || "Unknown"),
     escapeCSV(new Date(topic.time || topic.date).toLocaleString()),
-    escapeCSV(topic.like || 0),
+    escapeCSV(topic.likes || 0),
     escapeCSV(topic.comments || 0),
     escapeCSV(topic.shares || 0),
     escapeCSV(topic.type || ""),
