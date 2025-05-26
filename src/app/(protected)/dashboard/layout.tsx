@@ -4,8 +4,9 @@ import { useRouter } from "next/navigation";
 import { logoutUser } from "@/lib/services/auth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { AppSidebar } from "@/components/AppSidebar";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useEffect, useState } from "react";
+import { GlobeLock } from "lucide-react";
 
 export default function ProtectedLayout({
   children,
@@ -20,7 +21,6 @@ export default function ProtectedLayout({
     router.push("/login");
   };
 
-  // Load sidebar state from localStorage on mount
   useEffect(() => {
     const savedState = localStorage.getItem("sidebar_state");
     if (savedState !== null) {
@@ -28,7 +28,6 @@ export default function ProtectedLayout({
     }
   }, []);
 
-  // Save sidebar state to localStorage when it changes
   const handleSidebarOpenChange = (open: boolean) => {
     setSidebarOpen(open);
     localStorage.setItem("sidebar_state", String(open));
@@ -43,13 +42,19 @@ export default function ProtectedLayout({
         <div className="flex min-h-screen bg-background">
           <AppSidebar onLogout={handleLogout} />
           <main className="flex-1 overflow-auto">
-            <div className="p-6">
-              {children}
+            <div className="flex lg:hidden items-center justify-between p-4 border-b">
+              <div className="flex items-center gap-1">
+                <GlobeLock className="h-6 w-6 shrink-0" />
+                <h1 className="text-xl font-black tracking-tight">
+                  PORTAL
+                </h1>
+              </div>
+              <SidebarTrigger />
             </div>
+            <div className="p-6">{children}</div>
           </main>
         </div>
       </SidebarProvider>
     </ProtectedRoute>
   );
 }
-
