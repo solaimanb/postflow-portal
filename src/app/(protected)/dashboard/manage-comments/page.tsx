@@ -1,16 +1,26 @@
 "use client";
 
 import { useCallback } from "react";
-import CommentManager from "@/components/CommentManager";
+import { AddCommentForm } from "./_components/add-comment-form";
+import { CommentsTable } from "./_components/comments-table";
+import { toast } from "sonner";
 
 export default function ManageCommentsPage() {
   const handleCommentSaved = useCallback(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     (success: boolean, message: string) => {
-      //  TODO: Implement comment saved logic & sonner notification
+      if (success) {
+        toast.success(message);
+      } else {
+        toast.error(message);
+      }
     },
     []
   );
 
-  return <CommentManager onCommentSaved={handleCommentSaved} />;
+  return (
+    <div className="space-y-6">
+      <AddCommentForm onCommentSaved={handleCommentSaved} />
+      <CommentsTable />
+    </div>
+  );
 }

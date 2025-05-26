@@ -9,20 +9,20 @@ import { searchTopics } from "@/lib/services/facebook";
 import type { FacebookTopic, TopicSearchParams } from "@/types";
 import TopicTable from "@/components/TopicTable";
 
-// Component imports
 import { SearchHeader } from "./_components/search-header";
 import { ResultsHeader } from "./_components/results-header";
 import { EmptyState } from "./_components/empty-state";
 import { ResultsSkeleton } from "./_components/results-skeleton";
 import { TopicSearch } from "./_components/topic-search";
 
-// Utility imports
 import { downloadTopicsAsCSV } from "./_components/utils";
 
 const ERROR_MESSAGES = {
-  API_KEY: "API key configuration error. Please check your environment variables.",
-  SUBSCRIPTION: "This feature requires a paid subscription. The free trial has expired.",
-  DEFAULT: "Failed to search topics"
+  API_KEY:
+    "API key configuration error. Please check your environment variables.",
+  SUBSCRIPTION:
+    "This feature requires a paid subscription. The free trial has expired.",
+  DEFAULT: "Failed to search topics",
 };
 
 export default function TopicSearchPage() {
@@ -50,29 +50,32 @@ export default function TopicSearchPage() {
     setTopics([]);
   }, []);
 
-  const handleSearch = useCallback(async (params: TopicSearchParams) => {
-    setLoading(true);
-    try {
-      const fetchedTopics = await searchTopics(params);
-      setTopics(fetchedTopics);
+  const handleSearch = useCallback(
+    async (params: TopicSearchParams) => {
+      setLoading(true);
+      try {
+        const fetchedTopics = await searchTopics(params);
+        setTopics(fetchedTopics);
 
-      if (fetchedTopics.length === 0) {
-        toast("No topics found", {
-          description: "No topics found for the given search criteria.",
-          icon: <Info className="h-4 w-4 text-foreground/70" />,
-        });
-      } else {
-        toast("Topics found", {
-          description: `Found ${fetchedTopics.length} topics for "${params.keyword}"`,
-          icon: <CheckCircle className="h-4 w-4 text-green-500/80" />,
-        });
+        if (fetchedTopics.length === 0) {
+          toast("No topics found", {
+            description: "No topics found for the given search criteria.",
+            icon: <Info className="h-4 w-4 text-foreground/70" />,
+          });
+        } else {
+          toast("Topics found", {
+            description: `Found ${fetchedTopics.length} topics for "${params.keyword}"`,
+            icon: <CheckCircle className="h-4 w-4 text-green-500/80" />,
+          });
+        }
+      } catch (error) {
+        handleError(error);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      handleError(error);
-    } finally {
-      setLoading(false);
-    }
-  }, [handleError]);
+    },
+    [handleError]
+  );
 
   const handleDownloadCSV = useCallback(() => {
     if (topics.length === 0) return;
@@ -91,10 +94,7 @@ export default function TopicSearchPage() {
     return (
       <CardContent className="p-0">
         <div className="overflow-x-auto w-full rounded-lg bg-background/40 backdrop-blur-[2px]">
-          <TopicTable
-            topics={topics}
-            onDownloadCSV={handleDownloadCSV}
-          />
+          <TopicTable topics={topics} onDownloadCSV={handleDownloadCSV} />
         </div>
       </CardContent>
     );
