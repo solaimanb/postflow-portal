@@ -68,24 +68,23 @@ const fetchTopicsFromApify = async (
           }),
         });
 
-    // Handle error responses
+    // Get response text first
+    const responseText = await response.text();
+    console.log(`Raw dataset response: ${responseText}`);
+
+    // Then check if response was ok
     if (!response.ok) {
       try {
-        const errorData = await response.json();
+        const errorData = JSON.parse(responseText);
         console.error("Apify API error response:", JSON.stringify(errorData));
         throw new Error(`Apify API error: ${JSON.stringify(errorData)}`);
       } catch {
         // If response is not JSON
-        const text = await response.text();
         throw new Error(
-          `Apify API error: ${response.status} - ${text.substring(0, 100)}`
+          `Apify API error: ${response.status} - ${responseText.substring(0, 100)}`
         );
       }
     }
-
-    // Get response text and parse as JSON
-    const responseText = await response.text();
-    console.log(`Raw dataset response: ${responseText}`);
 
     let rawTopics;
     try {
@@ -127,12 +126,15 @@ const prepareActorInput = (
     return {
       query: params.keyword,
       search_type: "posts",
-      max_posts: params.maxItems,
-      limit: params.maxItems,
-      maxResults: params.maxItems,
+      max_posts: params.maxItems || 20,
+      limit: params.maxItems || 20,
+      maxResults: params.maxItems || 20,
       ...(params.startDate && { dateFrom: params.startDate }),
       ...(params.endDate && { dateTo: params.endDate }),
       ...(params.language && { language: params.language }),
+      proxyConfiguration: {
+        useApifyProxy: true,
+      },
     };
   }
 
@@ -199,6 +201,12 @@ const prepareActorInput = (
 /**
  * Transforms the output from a specific Apify actor to match our FacebookTopic interface
  */
+let uniqueCounter = 0;
+const getUniqueId = () => {
+  uniqueCounter += 1;
+  return `${Date.now()}-${uniqueCounter}`;
+};
+
 const transformActorOutput = (
   actorId: string,
   rawData: Record<string, unknown>[],
@@ -241,7 +249,7 @@ const transformActorOutput = (
       const imageUrl = item.image as string;
 
       return {
-        id: `fb-${item.post_id || index}-${Date.now()}`,
+        id: `fb-${item.post_id || index}-${getUniqueId()}`,
         topic: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
         date: postDate,
         popularityScore,
@@ -293,7 +301,7 @@ const transformActorOutput = (
         "Facebook User";
 
       return {
-        id: `fb-${item.postId || item.postUrl || index}-${Date.now()}`,
+        id: `fb-${item.postId || item.postUrl || index}-${getUniqueId()}`,
         topic: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
         date: postDate,
         popularityScore,
@@ -325,7 +333,7 @@ const transformActorOutput = (
       );
 
       return {
-        id: `fb-${item.postId || index}-${Date.now()}`,
+        id: `fb-${item.postId || index}-${getUniqueId()}`,
         topic: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
         date: (item.time as string) || new Date().toISOString(),
         popularityScore,
@@ -343,7 +351,7 @@ const transformActorOutput = (
 
   if (actorId === "blf62maenLRO8Rsfv") {
     return limitedData.map((item: Record<string, unknown>, index: number) => ({
-      id: `apify-${index}-${Date.now()}`,
+      id: `apify-${index}-${getUniqueId()}`,
       topic:
         (item.title as string) ||
         (item.topic as string) ||
@@ -360,7 +368,7 @@ const transformActorOutput = (
     return limitedData.map((item: Record<string, unknown>, index: number) => {
       const user = item.user as Record<string, unknown> | undefined;
       return {
-        id: `twitter-${index}-${Date.now()}`,
+        id: `twitter-${index}-${getUniqueId()}`,
         topic: (item.text as string) || `Tweet ${index + 1}`,
         date: (item.created_at as string) || new Date().toISOString(),
         popularityScore: calculateScore(item),
@@ -378,7 +386,7 @@ const transformActorOutput = (
       `Item ${index + 1}`;
 
     return {
-      id: `topic-${index}-${Date.now()}`,
+      id: `topic-${index}-${getUniqueId()}`,
       topic: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
       date:
         (item.date as string) ||
