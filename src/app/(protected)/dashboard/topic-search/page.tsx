@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle, AlertCircle, Info } from "lucide-react";
 import { toast } from "sonner";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { searchTopics } from "@/lib/services/facebook";
-import type { FacebookTopic, TopicSearchParams } from "@/types";
+import type { TopicSearchParams } from "@/types";
 import TopicTable from "@/components/TopicTable";
 
 import { SearchHeader } from "./_components/search-header";
@@ -26,56 +28,97 @@ const ERROR_MESSAGES = {
 };
 
 export default function TopicSearchPage() {
-  const [topics, setTopics] = useState<FacebookTopic[]>([]);
-  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
 
-  const handleError = useCallback((error: unknown) => {
-    console.error("Error searching topics:", error);
-    let errorMessage = ERROR_MESSAGES.DEFAULT;
+  // Parse search parameters from URL
+  const currentSearchParams: TopicSearchParams | null = useMemo(() => {
+    const keyword = searchParams.get("keyword");
+    if (!keyword) return null;
 
-    if (error instanceof Error) {
-      if (error.message.includes("API key not found")) {
-        errorMessage = ERROR_MESSAGES.API_KEY;
-      } else if (error.message.includes("requires a paid subscription")) {
-        errorMessage = ERROR_MESSAGES.SUBSCRIPTION;
-      } else {
-        errorMessage = error.message;
-      }
-    }
+    return {
+      keyword,
+      startDate: searchParams.get("startDate") || undefined,
+      endDate: searchParams.get("endDate") || undefined,
+      maxItems: searchParams.get("maxItems")
+        ? parseInt(searchParams.get("maxItems")!)
+        : undefined,
+    };
+  }, [searchParams]);
 
-    toast.error("Error", {
-      description: errorMessage,
-      icon: <AlertCircle className="h-4 w-4 text-destructive/80" />,
-    });
-    setTopics([]);
-  }, []);
-
-  const handleSearch = useCallback(
-    async (params: TopicSearchParams) => {
-      setLoading(true);
+  // Use React Query for data fetching and caching
+  const { data: topics = [], isLoading } = useQuery({
+    queryKey: ["topics", currentSearchParams],
+    queryFn: async () => {
+      if (!currentSearchParams) return [];
       try {
-        const fetchedTopics = await searchTopics(params);
-        setTopics(fetchedTopics);
-
-        if (fetchedTopics.length === 0) {
+        const result = await searchTopics(currentSearchParams);
+        if (result.length === 0) {
           toast("No topics found", {
             description: "No topics found for the given search criteria.",
             icon: <Info className="h-4 w-4 text-foreground/70" />,
           });
         } else {
           toast("Topics found", {
-            description: `Found ${fetchedTopics.length} topics for "${params.keyword}"`,
+            description: `Found ${result.length} topics for "${currentSearchParams.keyword}"`,
             icon: <CheckCircle className="h-4 w-4 text-green-500/80" />,
           });
         }
+        return result;
       } catch (error) {
-        handleError(error);
-      } finally {
-        setLoading(false);
+        console.error("Error searching topics:", error);
+        let errorMessage = ERROR_MESSAGES.DEFAULT;
+
+        if (error instanceof Error) {
+          if (error.message.includes("API key not found")) {
+            errorMessage = ERROR_MESSAGES.API_KEY;
+          } else if (error.message.includes("requires a paid subscription")) {
+            errorMessage = ERROR_MESSAGES.SUBSCRIPTION;
+          } else {
+            errorMessage = error.message;
+          }
+        }
+
+        toast.error("Error", {
+          description: errorMessage,
+          icon: <AlertCircle className="h-4 w-4 text-destructive/80" />,
+        });
+        throw error;
       }
     },
-    [handleError]
+    enabled: false, // Never auto-fetch
+    gcTime: 1000 * 60 * 30, // 30 minutes
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: false,
+  });
+
+  const handleSearch = useCallback(
+    (params: TopicSearchParams) => {
+      const searchQuery = new URLSearchParams();
+      searchQuery.set("keyword", params.keyword);
+      if (params.startDate) searchQuery.set("startDate", params.startDate);
+      if (params.endDate) searchQuery.set("endDate", params.endDate);
+      if (params.maxItems)
+        searchQuery.set("maxItems", params.maxItems.toString());
+
+      router.push(`?${searchQuery.toString()}`);
+
+      queryClient.fetchQuery({
+        queryKey: ["topics", params],
+        queryFn: () => searchTopics(params),
+      });
+    },
+    [router, queryClient]
   );
+
+  const handleClearSearch = useCallback(() => {
+    router.push("");
+    queryClient.removeQueries({ queryKey: ["topics"] });
+  }, [router, queryClient]);
 
   const handleDownloadCSV = useCallback(() => {
     if (topics.length === 0) return;
@@ -83,11 +126,11 @@ export default function TopicSearchPage() {
   }, [topics]);
 
   const resultsContent = useMemo(() => {
-    if (loading) {
+    if (isLoading) {
       return <ResultsSkeleton />;
     }
 
-    if (topics.length === 0) {
+    if (!currentSearchParams || topics.length === 0) {
       return <EmptyState />;
     }
 
@@ -98,19 +141,26 @@ export default function TopicSearchPage() {
         </div>
       </CardContent>
     );
-  }, [loading, topics, handleDownloadCSV]);
+  }, [isLoading, topics, currentSearchParams, handleDownloadCSV]);
 
   return (
     <div className="h-full w-full space-y-6">
       <Card className="border-0 shadow-sm bg-background/95 backdrop-blur-sm rounded-lg">
-        <SearchHeader />
+        <SearchHeader
+          onClear={handleClearSearch}
+          hasResults={topics.length > 0}
+        />
         <CardContent>
-          <TopicSearch onSearch={handleSearch} isLoading={loading} />
+          <TopicSearch
+            onSearch={handleSearch}
+            isLoading={isLoading}
+            initialValues={currentSearchParams}
+          />
         </CardContent>
       </Card>
 
       <Card className="border-0 shadow-sm bg-background/95 backdrop-blur-sm rounded-lg">
-        <ResultsHeader topicsCount={loading ? 5 : topics.length} />
+        <ResultsHeader topicsCount={isLoading ? 0 : topics.length} />
         {resultsContent}
       </Card>
     </div>

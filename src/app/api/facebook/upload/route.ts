@@ -75,7 +75,9 @@ export async function POST(req: NextRequest) {
 
     // Log the initiation of the upload with size information
     console.log(`Starting upload to Facebook for page ID: ${pageId}`);
-    console.log(`Video file size: ${(estimatedSize / (1024 * 1024)).toFixed(2)} MB`);
+    console.log(
+      `Video file size: ${(estimatedSize / (1024 * 1024)).toFixed(2)} MB`
+    );
 
     // Convert base64 data back to binary for uploading
     const binaryData = Buffer.from(base64Data, "base64");
@@ -96,7 +98,9 @@ export async function POST(req: NextRequest) {
     });
 
     console.log(`Uploading video to Facebook page ID: ${pageId}`);
-    console.log(`Video title: ${title || fileName || "Video from PostFlow Portal"}`);
+    console.log(
+      `Video title: ${title || fileName || "Video from PostFlow Portal"}`
+    );
     const startTime = Date.now();
 
     // Create a controller to handle timeouts
@@ -105,7 +109,7 @@ export async function POST(req: NextRequest) {
 
     try {
       // Make the request to Facebook's Graph API for videos
-      const apiVersion = "v19.0"; // Use a stable version
+      const apiVersion = "v22.0"; // Using latest Facebook API version
       const response = await fetch(
         `https://graph-video.facebook.com/${apiVersion}/${pageId}/videos`,
         {
@@ -118,7 +122,7 @@ export async function POST(req: NextRequest) {
 
       // Clear the timeout since the request completed
       clearTimeout(timeoutId);
-      
+
       // Log upload time
       const uploadTime = ((Date.now() - startTime) / 1000).toFixed(2);
       console.log(`Upload completed in ${uploadTime} seconds`);
@@ -154,7 +158,21 @@ export async function POST(req: NextRequest) {
                   error: "Facebook permission error",
                   details: responseData,
                   message:
-                    "Your app does not have permission to publish videos. Required permissions: pages_show_list, pages_read_engagement, pages_manage_posts, and publish_video.",
+                    "Your app does not have permission to publish content. Required permissions: pages_show_list, pages_read_engagement, pages_manage_posts, pages_manage_engagement, and publish_video for videos.",
+                },
+                { status: 403 }
+              );
+
+            case 100:
+              return NextResponse.json(
+                {
+                  error: "Facebook API error",
+                  details: responseData,
+                  message: fbError.message.includes(
+                    "No permission to publish the video"
+                  )
+                    ? "Missing required permissions. Please ensure you have pages_manage_posts, pages_manage_engagement, and publish_video permissions."
+                    : fbError.message,
                 },
                 { status: 403 }
               );
@@ -165,7 +183,7 @@ export async function POST(req: NextRequest) {
                   error: "Invalid access token",
                   details: responseData,
                   message:
-                    "The access token is invalid or has expired. Please reconnect your Facebook page.",
+                    "The access token is invalid or has expired. Please reconnect your Facebook page and ensure you have all required permissions.",
                 },
                 { status: 401 }
               );
@@ -181,38 +199,36 @@ export async function POST(req: NextRequest) {
                 { status: 429 }
               );
 
-            case 100:
-              if (fbError.error_subcode === 33) {
-                return NextResponse.json(
-                  {
-                    error: "Invalid Page ID",
-                    details: responseData,
-                    message:
-                      "The specified page ID does not exist or you do not have permission to access it.",
-                  },
-                  { status: 404 }
-                );
-              }
-              break;
-
             case 200:
               return NextResponse.json(
                 {
-                  error: "Video upload failed",
+                  error: "Content upload failed",
                   details: responseData,
                   message:
-                    "Facebook could not process this video. Please check that it meets Facebook's format requirements.",
+                    "Facebook could not process this content. Please check that it meets Facebook's format requirements and you have all necessary permissions.",
                 },
                 { status: 422 }
+              );
+
+            default:
+              return NextResponse.json(
+                {
+                  error: "Facebook API error",
+                  details: responseData,
+                  message: fbError.message || "An unknown error occurred",
+                },
+                { status: response.status }
               );
           }
         }
 
         return NextResponse.json(
-          { 
-            error: "Facebook API error", 
+          {
+            error: "Facebook API error",
             details: responseData,
-            message: responseData.error?.message || "An error occurred while uploading to Facebook"
+            message:
+              responseData.error?.message ||
+              "An error occurred while uploading to Facebook",
           },
           { status: response.status }
         );
@@ -227,7 +243,7 @@ export async function POST(req: NextRequest) {
         uploadTime: uploadTime,
         message: "Video successfully uploaded to Facebook",
         postCreated: true,
-        note: "Facebook automatically creates a post when videos are uploaded via the Graph API"
+        note: "Facebook automatically creates a post when videos are uploaded via the Graph API",
       });
     } catch (fetchError: unknown) {
       // Clear the timeout in case of error

@@ -6,17 +6,10 @@
  */
 
 import { db } from "../firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import {
-  collection,
-  query,
-  where,
-  getDocs,
-  doc,
-  getDoc,
-} from "firebase/firestore";
-import {
-  FacebookPost,
   FacebookPage,
+  FacebookPost,
   FacebookTopic,
   TopicSearchParams,
 } from "../../types";
@@ -47,17 +40,21 @@ const fetchTopicsFromApify = async (
 
     // In production (or static export), call Apify API directly
     // In development, use our API route
-    const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
-    
+    const isProduction =
+      typeof window !== "undefined" && window.location.hostname !== "localhost";
+
     // Make the appropriate API call based on environment
-    const response = isProduction 
-      ? await fetch(`https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${apiKey}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(runInput),
-        })
+    const response = isProduction
+      ? await fetch(
+          `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${apiKey}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(runInput),
+          }
+        )
       : await fetch("/api/apify", {
           method: "POST",
           headers: {
@@ -80,14 +77,16 @@ const fetchTopicsFromApify = async (
       } catch {
         // If response is not JSON
         const text = await response.text();
-        throw new Error(`Apify API error: ${response.status} - ${text.substring(0, 100)}`);
+        throw new Error(
+          `Apify API error: ${response.status} - ${text.substring(0, 100)}`
+        );
       }
     }
 
     // Get response text and parse as JSON
     const responseText = await response.text();
     console.log(`Raw dataset response: ${responseText}`);
-    
+
     let rawTopics;
     try {
       rawTopics = JSON.parse(responseText);
@@ -104,8 +103,11 @@ const fetchTopicsFromApify = async (
     }
 
     console.log(`Retrieved ${rawTopics.length} items from Apify dataset`);
-    console.log("Sample item:", JSON.stringify(rawTopics[0]).substring(0, 200) + "...");
-    
+    console.log(
+      "Sample item:",
+      JSON.stringify(rawTopics[0]).substring(0, 200) + "..."
+    );
+
     return transformActorOutput(actorId, rawTopics, params);
   } catch (error) {
     console.error("Error fetching topics from Apify:", error);
@@ -120,17 +122,34 @@ const prepareActorInput = (
   actorId: string,
   params: TopicSearchParams
 ): Record<string, unknown> => {
-  // For facebook-posts-scraper actor
-  if (actorId.includes("facebook-posts-scraper") || 
-      actorId.includes("facebook-scraper")) {
+  // For danek~facebook-search-ppr actor
+  if (actorId.includes("danek~facebook-search-ppr")) {
     return {
-      // Use search term as a page name to scrape
+      query: params.keyword,
+      search_type: "posts",
+      max_posts: params.maxItems,
+      limit: params.maxItems,
+      maxResults: params.maxItems,
+      ...(params.startDate && { dateFrom: params.startDate }),
+      ...(params.endDate && { dateTo: params.endDate }),
+      ...(params.language && { language: params.language }),
+    };
+  }
+
+  // For facebook-posts-scraper actor
+  if (
+    actorId.includes("facebook-posts-scraper") ||
+    actorId.includes("facebook-scraper")
+  ) {
+    return {
       startUrls: [
         {
-          "url": `https://www.facebook.com/search/posts/?q=${encodeURIComponent(params.keyword)}`
-        }
+          url: `https://www.facebook.com/search/posts/?q=${encodeURIComponent(
+            params.keyword
+          )}`,
+        },
       ],
-      maxPosts: params.maxItems || 20,
+      maxPosts: params.maxItems,
       commentsMode: "NONE",
       reactionsMode: "NONE",
       language: params.language || "en",
@@ -138,16 +157,16 @@ const prepareActorInput = (
       maxPostDate: params.endDate || undefined,
       minPostDate: params.startDate || undefined,
       proxyConfiguration: {
-        useApifyProxy: true
-      }
+        useApifyProxy: true,
+      },
     };
   }
-  
+
   // Handle both slash and tilde formats for easyapi actor
   if (actorId.includes("facebook-posts-search-scraper")) {
     return {
       searchQuery: params.keyword,
-      maxPosts: params.maxItems || 20
+      maxPosts: params.maxItems,
     };
   }
 
@@ -158,22 +177,22 @@ const prepareActorInput = (
         params.startDate ||
         new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
       endDate: params.endDate || new Date().toISOString(),
-      maxItems: 20,
+      maxItems: params.maxItems,
     };
   }
 
   if (actorId === "your-twitter-actor-id") {
     return {
       query: params.keyword,
-      maxTweets: 20,
+      maxTweets: params.maxItems,
     };
   }
 
-  // Default input format
   return {
     keyword: params.keyword,
     startDate: params.startDate,
     endDate: params.endDate,
+    maxItems: params.maxItems,
   };
 };
 
@@ -185,94 +204,145 @@ const transformActorOutput = (
   rawData: Record<string, unknown>[],
   params: TopicSearchParams
 ): FacebookTopic[] => {
-  // For facebook-posts-scraper actor
-  if (actorId.includes("facebook-posts-scraper") || 
-      actorId.includes("facebook-scraper")) {
-    return rawData.map((item: Record<string, unknown>, index: number) => {
-      // Extract post text
-      const text = item.text as string || '';
-      
-      // Extract date
-      const postDate = item.postDate as string || 
-                     item.date as string || 
-                     new Date().toISOString();
-      
-      // Extract engagement metrics
-      const likes = typeof item.likesCount === 'number' ? item.likesCount : 0;
-      const comments = typeof item.commentsCount === 'number' ? item.commentsCount : 0;
-      const shares = typeof item.sharesCount === 'number' ? item.sharesCount : 0;
-      
-      // Calculate popularity score
-      const popularityScore = likes + (comments * 2) + (shares * 3);
-      
-      // Extract keywords from text
+  const limitedData = params.maxItems
+    ? rawData.slice(0, params.maxItems)
+    : rawData;
+
+  if (actorId.includes("danek~facebook-search-ppr")) {
+    return limitedData.map((item: Record<string, unknown>, index: number) => {
+      const text = (item.message as string) || "";
+      const timestamp = item.timestamp as number;
+      const postDate = timestamp
+        ? new Date(timestamp * 1000).toISOString()
+        : new Date().toISOString();
+      const comments = (item.comments_count as number) || 0;
+      const shares = (item.reshare_count as number) || 0;
+      const reactions = (item.reactions as Record<string, number>) || {};
+      const totalReactions = Object.values(reactions).reduce(
+        (sum, count) => sum + count,
+        0
+      );
+      const popularityScore = totalReactions + comments * 2 + shares * 3;
       const extractedKeywords = text
         .split(/\s+/)
-        .filter(word => word.length > 4)
+        .filter((word) => word.length > 4)
         .slice(0, 5);
-      
-      const keywords = [params.keyword, ...extractedKeywords]
-        .filter((v, i, a) => a.indexOf(v) === i);
-      
-      // Get author info
-      const authorName = 
-        (item.authorName as string) || 
-        ((item.pageInfo as Record<string, unknown>)?.name as string) || 
-        'Facebook User';
-      
+
+      const keywords = [params.keyword, ...extractedKeywords].filter(
+        (v, i, a) => a.indexOf(v) === i
+      );
+
+      const author = (item.author as Record<string, unknown>) || {};
+      const pageName = (author.name as string) || "Facebook Page";
+      const pageUrl = (author.url as string) || "";
+
+      const videoUrl = item.video as string;
+      const videoThumbnail = item.video_thumbnail as string;
+      const imageUrl = item.image as string;
+
       return {
-        id: `fb-${item.postId || item.postUrl || index}-${Date.now()}`,
-        topic: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
+        id: `fb-${item.post_id || index}-${Date.now()}`,
+        topic: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
         date: postDate,
         popularityScore,
         keywords,
-        relatedTopics: [authorName]
+        relatedTopics: [pageName],
+        comments,
+        shares,
+        url: item.url as string,
+        text,
+        pageName,
+        pageUrl,
+        postId: item.post_id as string,
+        type: item.type as string,
+        videoUrl,
+        videoThumbnail,
+        imageUrl,
+        time: postDate,
+      };
+    });
+  }
+
+  if (
+    actorId.includes("facebook-posts-scraper") ||
+    actorId.includes("facebook-scraper")
+  ) {
+    return limitedData.map((item: Record<string, unknown>, index: number) => {
+      const text = (item.text as string) || "";
+      const postDate =
+        (item.postDate as string) ||
+        (item.date as string) ||
+        new Date().toISOString();
+      const likes = typeof item.likesCount === "number" ? item.likesCount : 0;
+      const comments =
+        typeof item.commentsCount === "number" ? item.commentsCount : 0;
+      const shares =
+        typeof item.sharesCount === "number" ? item.sharesCount : 0;
+      const popularityScore = likes + comments * 2 + shares * 3;
+      const extractedKeywords = text
+        .split(/\s+/)
+        .filter((word) => word.length > 4)
+        .slice(0, 5);
+      const keywords = [params.keyword, ...extractedKeywords].filter(
+        (v, i, a) => a.indexOf(v) === i
+      );
+
+      const authorName =
+        (item.authorName as string) ||
+        ((item.pageInfo as Record<string, unknown>)?.name as string) ||
+        "Facebook User";
+
+      return {
+        id: `fb-${item.postId || item.postUrl || index}-${Date.now()}`,
+        topic: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
+        date: postDate,
+        popularityScore,
+        keywords,
+        relatedTopics: [authorName],
       };
     });
   }
 
   if (actorId.includes("facebook-posts-search-scraper")) {
-    return rawData.map((item: Record<string, unknown>, index: number) => {
-      // Extract engagement metrics for popularity score
-      const likes = typeof item.likes === 'number' ? item.likes : 0;
-      const comments = typeof item.comments === 'number' ? item.comments : 0;
-      const shares = typeof item.shares === 'string' 
-        ? item.shares
-        : (typeof item.shares === 'number' ? item.shares : 0);
-      
-      // Calculate popularity score based on engagement
-      const popularityScore = likes + (comments * 2) + (typeof shares === 'number' ? shares * 3 : 0);
-      
-      // Extract keywords from post text
-      const text = item.text as string || '';
+    return limitedData.map((item: Record<string, unknown>, index: number) => {
+      const likes = typeof item.likes === "number" ? item.likes : 0;
+      const comments = typeof item.comments === "number" ? item.comments : 0;
+      const shares =
+        typeof item.shares === "string"
+          ? parseInt(item.shares, 10) || 0
+          : typeof item.shares === "number"
+          ? item.shares
+          : 0;
+      const popularityScore = likes + comments * 2 + shares * 3;
+      const text = (item.text as string) || "";
       const extractedKeywords = text
         .split(/\s+/)
-        .filter(word => word.length > 4)
+        .filter((word) => word.length > 4)
         .slice(0, 5);
-      
-      const keywords = [params.keyword, ...extractedKeywords].filter((v, i, a) => a.indexOf(v) === i);
-      
+
+      const keywords = [params.keyword, ...extractedKeywords].filter(
+        (v, i, a) => a.indexOf(v) === i
+      );
+
       return {
         id: `fb-${item.postId || index}-${Date.now()}`,
-        topic: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
-        date: item.time as string || new Date().toISOString(),
+        topic: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
+        date: (item.time as string) || new Date().toISOString(),
         popularityScore,
         keywords,
-        // Additional metadata
-        relatedTopics: [item.pageName as string || 'Facebook Page'],
-        // Include raw data fields
+        relatedTopics: [(item.pageName as string) || "Facebook Page"],
         likes,
         comments,
         shares,
         url: item.url as string,
         text,
-        pageName: item.pageName as string
+        pageName: item.pageName as string,
       };
     });
   }
 
   if (actorId === "blf62maenLRO8Rsfv") {
-    return rawData.map((item: Record<string, unknown>, index: number) => ({
+    return limitedData.map((item: Record<string, unknown>, index: number) => ({
       id: `apify-${index}-${Date.now()}`,
       topic:
         (item.title as string) ||
@@ -282,36 +352,42 @@ const transformActorOutput = (
       popularityScore:
         (item.score as number) || Math.floor(Math.random() * 100),
       keywords: (item.keywords as string[]) || [params.keyword],
+      relatedTopics: [(item.source as string) || "Unknown Source"],
     }));
   }
 
   if (actorId === "your-twitter-actor-id") {
-    return rawData.map((item: Record<string, unknown>, index: number) => ({
-      id: `twitter-${index}-${Date.now()}`,
-      topic: (item.text as string) || `Tweet ${index + 1}`,
-      date: (item.created_at as string) || new Date().toISOString(),
-      popularityScore: calculateScore(item),
-      keywords: extractKeywords(item, params.keyword),
-    }));
+    return limitedData.map((item: Record<string, unknown>, index: number) => {
+      const user = item.user as Record<string, unknown> | undefined;
+      return {
+        id: `twitter-${index}-${Date.now()}`,
+        topic: (item.text as string) || `Tweet ${index + 1}`,
+        date: (item.created_at as string) || new Date().toISOString(),
+        popularityScore: calculateScore(item),
+        keywords: extractKeywords(item, params.keyword),
+        relatedTopics: [(user?.name as string) || "Twitter User"],
+      };
+    });
   }
 
-  // Default transformation for unknown actors
-  return rawData.map((item: Record<string, unknown>, index: number) => {
-    const text = 
-      (item.text as string) || 
-      (item.content as string) || 
-      (item.title as string) || 
+  return limitedData.map((item: Record<string, unknown>, index: number) => {
+    const text =
+      (item.text as string) ||
+      (item.content as string) ||
+      (item.title as string) ||
       `Item ${index + 1}`;
-      
+
     return {
       id: `topic-${index}-${Date.now()}`,
-      topic: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
-      date: (item.date as string) || 
-            (item.timestamp as string) || 
-            (item.created_at as string) || 
-            new Date().toISOString(),
+      topic: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
+      date:
+        (item.date as string) ||
+        (item.timestamp as string) ||
+        (item.created_at as string) ||
+        new Date().toISOString(),
       popularityScore: Math.floor(Math.random() * 100),
       keywords: [params.keyword],
+      relatedTopics: ["Unknown Source"],
     };
   });
 };
@@ -502,19 +578,18 @@ const uploadVideoFileToFacebook = async (
   videoFile: File,
   onProgress?: (fileName: string, progress: number) => void,
   onError?: (fileName: string, error: string) => void,
-  content?: string // Optional post content to include with the video
+  content?: string
 ): Promise<string> => {
   try {
     console.log(`Starting video upload for page ID: ${pageId}`);
-
-    // Set initial progress
+    const apiVersion = "v22.0";
     onProgress?.(videoFile.name, 0);
 
     // Read the file as a base64 data URL
     const fileReader = new FileReader();
     const fileDataPromise = new Promise<string>((resolve, reject) => {
       fileReader.onload = () => {
-        onProgress?.(videoFile.name, 20); // File read complete
+        onProgress?.(videoFile.name, 20);
         resolve(fileReader.result as string);
       };
       fileReader.onerror = () => {
@@ -524,7 +599,6 @@ const uploadVideoFileToFacebook = async (
       };
       fileReader.onprogress = (event) => {
         if (event.lengthComputable) {
-          // Calculate file reading progress (0-20%)
           const progress = Math.round((event.loaded / event.total) * 20);
           onProgress?.(videoFile.name, progress);
         }
@@ -533,196 +607,53 @@ const uploadVideoFileToFacebook = async (
     });
 
     const fileData = await fileDataPromise;
+    onProgress?.(videoFile.name, 25);
 
-    // Create payload for the API
-    const payload = {
-      accessToken,
-      pageId,
-      title: videoFile.name.split(".")[0] || "Video from PostFlow Portal",
-      description: content || "Video uploaded via PostFlow Portal", // Use the post content as description
-      fileData,
-      fileName: videoFile.name,
-      fileType: videoFile.type,
-    };
-
-    console.log(
-      `Sending video upload request for page ID: ${pageId}`
-    );
-    onProgress?.(videoFile.name, 25); // Prepare to send
-    
-    // Start progress animation - simulate upload to server (25-50%)
-    let currentProgress = 25;
-    const progressInterval = setInterval(() => {
-      if (currentProgress < 50) {
-        currentProgress += 1;
-        onProgress?.(videoFile.name, currentProgress);
-      }
-    }, 200);
-
-    // Create a controller for the fetch request so we can abort if needed
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minute timeout
-
-    try {
-      // Check if we're in production or development
-      const isProduction = typeof window !== 'undefined' && window.location.hostname !== 'localhost';
-      let response;
-
-      if (isProduction) {
-        // In production, upload directly to Facebook
-        console.log("Production environment detected - uploading directly to Facebook");
-        
-        // Extract the base64 data from the data URL
-        const base64Data = fileData.split(",")[1];
-        if (!base64Data) {
-          throw new Error("Invalid file data format");
-        }
-        
-        // Create form data for the Graph API
-        const formData = new FormData();
-        
-        // Convert base64 to Blob
-        const byteCharacters = atob(base64Data);
-        const byteArrays = [];
-        for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-          const slice = byteCharacters.slice(offset, offset + 512);
-          const byteNumbers = new Array(slice.length);
-          for (let i = 0; i < slice.length; i++) {
-            byteNumbers[i] = slice.charCodeAt(i);
-          }
-          const byteArray = new Uint8Array(byteNumbers);
-          byteArrays.push(byteArray);
-        }
-        const blob = new Blob(byteArrays, { type: videoFile.type });
-        
-        // Add the form data fields
-        formData.append("access_token", accessToken);
-        formData.append("source", blob, videoFile.name);
-        formData.append("title", payload.title);
-        formData.append("description", payload.description);
-        
-        // Send direct request to Facebook Graph API
-        const apiVersion = "v19.0";
-        response = await fetch(
-          `https://graph-video.facebook.com/${apiVersion}/${pageId}/videos`,
-          {
-            method: "POST",
-            body: formData,
-            signal: controller.signal,
-          }
-        );
-      } else {
-        // In development, use the local API route
-        response = await fetch("/api/facebook/upload", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-          signal: controller.signal,
-        });
-      }
-
-      // Clear the timeout since the request completed
-      clearTimeout(timeoutId);
-      
-      // Clear the progress interval
-      clearInterval(progressInterval);
-      
-      // First stage complete - our API received the data
-      onProgress?.(videoFile.name, 50);
-      
-      // Start progress animation - simulate Facebook processing (50-95%)
-      let fbProgress = 50;
-      const fbProgressInterval = setInterval(() => {
-        if (fbProgress < 95) {
-          fbProgress += 1;
-          onProgress?.(videoFile.name, fbProgress);
-        }
-      }, 300);
-
-      if (!response.ok) {
-        // Clear the Facebook progress interval
-        clearInterval(fbProgressInterval);
-        
-        const responseText = await response.text();
-        let errorData;
-        
-        try {
-          errorData = JSON.parse(responseText);
-        } catch (parseError) {
-          console.error("Error parsing response:", parseError, responseText);
-          errorData = { message: "Invalid response format", rawResponse: responseText };
-        }
-        
-        console.error(`Video upload error: ${JSON.stringify(errorData)}`);
-
-        // Handle specific error codes from the response
-        if (errorData.error) {
-          if (errorData.error.code === 10) {
-            const errorMsg = `Facebook application permission error: Your app does not have permission to publish videos. Make sure you have these permissions: 'pages_show_list', 'pages_read_engagement', 'pages_manage_posts', and 'publish_video'.`;
-            onError?.(videoFile.name, errorMsg);
-            throw new Error(errorMsg);
-          } else if (errorData.error.code === 190) {
-            const errorMsg = `Invalid or expired access token: The access token used for this page has expired or is invalid. Please reconnect your Facebook page.`;
-            onError?.(videoFile.name, errorMsg);
-            throw new Error(errorMsg);
-          } else if (errorData.error.type === "OAuthException") {
-            const errorMsg = `Facebook OAuth error: ${errorData.error.message}. Please check your app permissions and page access token.`;
-            onError?.(videoFile.name, errorMsg);
-            throw new Error(errorMsg);
-          }
-        }
-
-        // Get the error message from the response if available
-        const errorMsg = errorData.message || errorData.error?.message || `Facebook API error: ${JSON.stringify(errorData)}`;
-        onError?.(videoFile.name, errorMsg);
-        throw new Error(errorMsg);
-      }
-
-      const responseText = await response.text();
-      let data;
-      
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error("Error parsing response:", parseError, responseText);
-        throw new Error("Invalid response format from the server");
-      }
-      
-      // Extract the video ID from the response
-      const videoId = isProduction ? data.id : data.videoId;
-      
-      // Clear the Facebook progress interval
-      clearInterval(fbProgressInterval);
-      
-      console.log(`Video uploaded successfully with ID: ${videoId}`);
-      console.log(`Note: The video upload has automatically created a post on Facebook.`);
-
-      // Upload complete
-      onProgress?.(videoFile.name, 100);
-
-      return videoId;
-    } catch (fetchError: unknown) {
-      // Clear the timeout in case of error
-      clearTimeout(timeoutId);
-      // Clear the progress interval
-      clearInterval(progressInterval);
-
-      if (
-        typeof fetchError === "object" &&
-        fetchError &&
-        "name" in fetchError &&
-        fetchError.name === "AbortError"
-      ) {
-        const errorMsg =
-          "Upload timed out after 5 minutes. Please try a smaller video or check your network connection.";
-        onError?.(videoFile.name, errorMsg);
-        throw new Error(errorMsg);
-      }
-
-      throw fetchError;
+    // Extract the base64 data
+    const base64Data = fileData.split(",")[1];
+    if (!base64Data) {
+      throw new Error("Invalid file data format");
     }
+
+    // Create form data for the Graph API
+    const formData = new FormData();
+    formData.append("access_token", accessToken);
+    formData.append(
+      "source",
+      new Blob([Buffer.from(base64Data, "base64")], { type: videoFile.type }),
+      videoFile.name
+    );
+    formData.append(
+      "title",
+      videoFile.name.split(".")[0] || "Video from PostFlow Portal"
+    );
+    formData.append(
+      "description",
+      content || "Video uploaded via PostFlow Portal"
+    );
+
+    // Send direct request to Facebook Graph API
+    const response = await fetch(
+      `https://graph-video.facebook.com/${apiVersion}/${pageId}/videos`,
+      {
+        method: "POST",
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Facebook API error: ${JSON.stringify(errorData)}`);
+    }
+
+    const data = await response.json();
+    onProgress?.(videoFile.name, 100);
+    console.log(`Video uploaded successfully with ID: ${data.id}`);
+    console.log(
+      `Note: The video upload has automatically created a post on Facebook.`
+    );
+
+    return data.id;
   } catch (error) {
     console.error("Error in video upload process:", error);
     if (error instanceof Error) {
@@ -754,7 +685,14 @@ const uploadMediaToFacebook = async (
   } else if (media instanceof File) {
     // Check if the file is a video based on its type
     if (media.type.startsWith("video/")) {
-      return await uploadVideoFileToFacebook(pageId, accessToken, media, onProgress, onError, content);
+      return await uploadVideoFileToFacebook(
+        pageId,
+        accessToken,
+        media,
+        onProgress,
+        onError,
+        content
+      );
     } else {
       return await uploadImageFileToFacebook(pageId, accessToken, media);
     }
@@ -766,584 +704,293 @@ const uploadMediaToFacebook = async (
 };
 
 /**
- * Posts content to a Facebook page using Graph API
- * @param mediaItems Can be either URL strings or File objects
+ * Verify access token permissions before posting
  */
-const postToFacebookPage = async (
-  pageId: string,
-  accessToken: string,
-  content: string,
-  mediaItems?: (string | File)[],
-  onUploadProgress?: (fileName: string, progress: number) => void,
-  onUploadError?: (fileName: string, error: string) => void
-): Promise<string> => {
+const verifyTokenPermissions = async (
+  accessToken: string
+): Promise<boolean> => {
   try {
-    const apiVersion = "v22.0";
-    console.log(`Attempting to post to Facebook page ID: ${pageId}`);
-    console.log(
-      `Initial access token (first 10 chars): ${accessToken.substring(
-        0,
-        10
-      )}...`
+    // First, debug the token to get its type
+    const response = await fetch(
+      `https://graph.facebook.com/v22.0/debug_token?input_token=${accessToken}&access_token=${accessToken}`
     );
 
-    // Check if we're dealing with a video file - if so, skip the direct post attempt
-    const hasVideoFile = mediaItems && 
-      mediaItems.length === 1 && 
-      mediaItems[0] instanceof File && 
-      mediaItems[0].type.startsWith("video/");
+    if (!response.ok) {
+      throw new Error("Failed to verify token permissions");
+    }
 
-    // Only try direct posting if it's not a video file
-    if (!hasVideoFile) {
-      // First, try posting directly with the user token
-      console.log(`Trying direct post with user token first...`);
-      try {
-        const url = `https://graph.facebook.com/${apiVersion}/${pageId}/feed`;
+    const data = await response.json();
+    console.log("Token debug data:", data);
+
+    if (data.error) {
+      throw new Error(`Token error: ${data.error.message}`);
+    }
+
+    // Only check permissions for USER tokens
+    if (data.data?.type === "USER") {
+      const permResponse = await fetch(
+        `https://graph.facebook.com/v22.0/me/permissions?access_token=${accessToken}`
+      );
+      const permData = await permResponse.json();
+      console.log("Token permissions (USER):", permData);
+    } else if (data.data?.type === "PAGE") {
+      // For PAGE tokens, we just verify it's valid and has the correct type
+      console.log(
+        "Using PAGE access token - permissions are inherited from the page role"
+      );
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Token verification error:", error);
+    throw error;
+  }
+};
+
+/**
+ * Get a page access token from a user access token
+ */
+const getPageAccessToken = async (
+  pageId: string,
+  userAccessToken: string
+): Promise<string> => {
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/v22.0/${pageId}?fields=access_token&access_token=${userAccessToken}`
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        `Failed to get page access token: ${errorData.error?.message}`
+      );
+    }
+
+    const data = await response.json();
+    return data.access_token;
+  } catch (error) {
+    console.error("Error getting page access token:", error);
+    throw error;
+  }
+};
+
+/**
+ * Posts content to a Facebook page using Graph API
+ */
+export const postToFacebookPage = async (
+  pageId: string,
+  userAccessToken: string,
+  content: string,
+  mediaItems?: (string | File)[]
+): Promise<string> => {
+  try {
+    // First, get a page access token
+    console.log("Getting page access token...");
+    const pageAccessToken = await getPageAccessToken(pageId, userAccessToken);
+    console.log("Successfully got page access token");
+
+    // Verify token permissions
+    await verifyTokenPermissions(pageAccessToken);
+
+    const apiVersion = "v22.0";
+
+    // Check if we have media items
+    if (mediaItems && mediaItems.length > 0) {
+      const mediaItem = mediaItems[0];
+
+      // Handle video upload
+      if (mediaItem instanceof File && mediaItem.type.startsWith("video/")) {
+        const formData = new FormData();
+        formData.append("source", mediaItem);
+        formData.append("description", content);
+        formData.append("access_token", pageAccessToken); // Use page token
+
+        const response = await fetch(
+          `https://graph-video.facebook.com/${apiVersion}/${pageId}/videos`,
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error("Facebook API Error Response:", errorData);
+          throw new Error(
+            errorData.error?.message || "Failed to upload video to Facebook"
+          );
+        }
+
+        const data = await response.json();
+        return data.id;
+      }
+
+      // Handle image upload
+      if (typeof mediaItem === "string" || mediaItem instanceof File) {
+        const mediaId = await uploadMediaToFacebook(
+          pageId,
+          pageAccessToken, // Use page token
+          mediaItem
+        );
+
+        // Create post with media
         const params = new URLSearchParams();
         params.append("message", content);
-        params.append("access_token", accessToken);
+        params.append("attached_media[0]", `{"media_fbid":"${mediaId}"}`);
+        params.append("access_token", pageAccessToken); // Use page token
 
-        if (
-          mediaItems &&
-          mediaItems.length === 1 &&
-          typeof mediaItems[0] === "string" &&
-          isUrl(mediaItems[0])
-        ) {
-          params.append("link", mediaItems[0]);
-        }
-
-        console.log(`Direct user token post URL: ${url}`);
-        console.log(
-          `Direct post parameters: message=${content.substring(
-            0,
-            20
-          )}..., access_token=${accessToken.substring(0, 10)}...`
+        const response = await fetch(
+          `https://graph.facebook.com/${apiVersion}/${pageId}/feed`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: params,
+          }
         );
 
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: params,
-        });
-
-        console.log(`Direct user token post response status: ${response.status}`);
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log(`Direct user token post success: ${JSON.stringify(data)}`);
-          return data.id;
-        } else {
+        if (!response.ok) {
           const errorData = await response.json();
-          console.error(
-            `Direct user token post error: ${JSON.stringify(errorData)}`
+          console.error("Facebook API Error Response:", errorData);
+          throw new Error(
+            errorData.error?.message || "Failed to create post with media"
           );
-          console.log(`Falling back to page token approach...`);
         }
-      } catch (directError) {
-        console.error(`Error with direct user token post:`, directError);
-        console.log(`Falling back to page token approach...`);
+
+        const data = await response.json();
+        return data.id;
       }
-    } else {
-      console.log(`Detected video upload - skipping direct post attempt and using dedicated video upload flow`);
     }
 
-    // Continue with the regular page token approach
-    let pageAccessToken = accessToken;
+    // Text-only post
+    const params = new URLSearchParams();
+    params.append("message", content);
+    params.append("access_token", pageAccessToken); // Use page token
 
-    // Try to get a page-specific access token
-    try {
-      const pageTokenUrl = `https://graph.facebook.com/${apiVersion}/${pageId}?fields=access_token&access_token=${accessToken}`;
-      console.log(`Requesting page access token from: ${pageTokenUrl}`);
-
-      const pageTokenResponse = await fetch(pageTokenUrl);
-      console.log(`Page token response status: ${pageTokenResponse.status}`);
-
-      if (pageTokenResponse.ok) {
-        const pageTokenData = await pageTokenResponse.json();
-        console.log(`Page token response: ${JSON.stringify(pageTokenData)}`);
-
-        if (pageTokenData.access_token) {
-          console.log(
-            `Retrieved page access token (first 10 chars): ${pageTokenData.access_token.substring(
-              0,
-              10
-            )}...`
-          );
-          pageAccessToken = pageTokenData.access_token;
-        } else {
-          console.log(`No page access token found in response`);
-        }
-      } else {
-        const errorData = await pageTokenResponse.json();
-        console.error(
-          `Error getting page access token: ${JSON.stringify(errorData)}`
-        );
-      }
-    } catch (tokenError) {
-      console.error("Error fetching page access token:", tokenError);
-    }
-
-    // Direct post attempt with parameters logged
-    if (mediaItems && mediaItems.length > 0) {
-      console.log(`Posting with ${mediaItems.length} media items`);
-      if (typeof mediaItems[0] === "string") {
-        console.log(`Media type: URL - ${mediaItems[0].substring(0, 30)}...`);
-      } else {
-        console.log(
-          `Media type: File - ${mediaItems[0].name} (${mediaItems[0].type})`
-        );
-      }
-
-      if (mediaItems.length === 1) {
-        const media = mediaItems[0];
-        
-        try {
-          console.log(`Uploading media to Facebook...`);
-          const mediaId = await uploadMediaToFacebook(
-            pageId,
-            pageAccessToken,
-            media,
-            onUploadProgress,
-            onUploadError,
-            content
-          );
-          console.log(`Media upload success, got media ID: ${mediaId}`);
-          
-          // For videos, we need to use a different endpoint and approach
-          if (media instanceof File && media.type.startsWith("video/")) {
-            // For videos, the upload already created the post, so we just need to return the ID
-            console.log(`Video upload created post with ID: ${mediaId}`);
-            return mediaId;
-          }
-          
-          // For images and other media, continue with the feed post
-          const url = `https://graph.facebook.com/${apiVersion}/${pageId}/feed`;
-          const params = new URLSearchParams();
-          params.append("message", content);
-          params.append("access_token", pageAccessToken);
-          
-          if (typeof media === "string" && isUrl(media)) {
-            params.append("link", media);
-          } else {
-            params.append("attached_media[0]", JSON.stringify({ media_fbid: mediaId }));
-          }
-          
-          console.log(`Posting with attached media: ${url}`);
-          const response = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: params,
-          });
-          
-          console.log(`Media post response status: ${response.status}`);
-          
-          if (!response.ok) {
-            const errorData = await response.json();
-            console.error(`Media post error:`, errorData);
-            throw new Error(`Facebook API error: ${JSON.stringify(errorData)}`);
-          }
-          
-          const postData = await response.json();
-          console.log(`Media post success: ${JSON.stringify(postData)}`);
-          return postData.id;
-        } catch (mediaError) {
-          console.error(`Error uploading media:`, mediaError);
-          throw mediaError;
-        }
-      } else {
-        try {
-          console.log(
-            `Uploading multiple media items (${mediaItems.length})...`
-          );
-          const mediaIds = [];
-          for (let i = 0; i < mediaItems.length; i++) {
-            console.log(
-              `Uploading media item ${i + 1}/${mediaItems.length}...`
-            );
-            const mediaId = await uploadMediaToFacebook(
-              pageId,
-              pageAccessToken,
-              mediaItems[i],
-              onUploadProgress,
-              onUploadError,
-              content
-            );
-            console.log(`Media ${i + 1} uploaded, got ID: ${mediaId}`);
-            mediaIds.push(mediaId);
-          }
-
-          const postUrl = `https://graph.facebook.com/${apiVersion}/${pageId}/feed`;
-          const postParams = new URLSearchParams();
-          postParams.append("message", content);
-          postParams.append("access_token", pageAccessToken);
-
-          mediaIds.forEach((id, index) => {
-            postParams.append(
-              `attached_media[${index}]`,
-              JSON.stringify({ media_fbid: id })
-            );
-          });
-
-          console.log(
-            `Posting with ${mediaIds.length} attached media items: ${postUrl}`
-          );
-
-          const postResponse = await fetch(postUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: postParams,
-          });
-
-          console.log(
-            `Multiple media post response status: ${postResponse.status}`
-          );
-
-          if (!postResponse.ok) {
-            const postErrorData = await postResponse.json();
-            console.error(
-              `Multiple media post error: ${JSON.stringify(postErrorData)}`
-            );
-            throw new Error(
-              `Facebook API error: ${JSON.stringify(postErrorData)}`
-            );
-          }
-
-          const postData = await postResponse.json();
-          console.log(
-            `Multiple media post success: ${JSON.stringify(postData)}`
-          );
-          return postData.id;
-        } catch (mediaError) {
-          console.error(`Multiple media upload error:`, mediaError);
-          throw mediaError;
-        }
-      }
-    } else {
-      console.log(`Posting without media items`);
-
-      // Debug post parameters
-      const url = `https://graph.facebook.com/${apiVersion}/${pageId}/feed`;
-      const params = new URLSearchParams();
-      params.append("message", content);
-      params.append("access_token", pageAccessToken);
-
-      console.log(`Posting to URL: ${url}`);
-      console.log(
-        `Post parameters: message=${content.substring(
-          0,
-          20
-        )}..., access_token=${pageAccessToken.substring(0, 10)}...`
-      );
-
-      const response = await fetch(url, {
+    console.log("Attempting to create post...");
+    const response = await fetch(
+      `https://graph.facebook.com/${apiVersion}/${pageId}/feed`,
+      {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
         body: params,
-      });
-
-      console.log(`Post response status: ${response.status}`);
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error(`Post error response: ${JSON.stringify(errorData)}`);
-
-        // Try with original token if page token failed
-        if (pageAccessToken !== accessToken) {
-          console.log(`Retrying with original user token...`);
-          params.set("access_token", accessToken);
-          const retryResponse = await fetch(url, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: params,
-          });
-
-          console.log(`Retry response status: ${retryResponse.status}`);
-
-          if (retryResponse.ok) {
-            const retryData = await retryResponse.json();
-            console.log(`Retry succeeded: ${JSON.stringify(retryData)}`);
-            return retryData.id;
-          } else {
-            const retryErrorData = await retryResponse.json();
-            console.error(`Retry error: ${JSON.stringify(retryErrorData)}`);
-            throw new Error(
-              `Facebook API error: ${JSON.stringify(retryErrorData)}`
-            );
-          }
-        }
-
-        if (errorData.error && errorData.error.code === 200) {
-          throw new Error(
-            `Permission error: Make sure your token has pages_read_engagement and pages_manage_posts permissions for this page.`
-          );
-        } else if (errorData.error && errorData.error.code === 100) {
-          throw new Error(
-            `Page not found or not accessible: Check that the page ID ${pageId} is correct and your app has access to it.`
-          );
-        } else if (errorData.error && errorData.error.code === 10) {
-          throw new Error(
-            `Facebook application permission error: Your app does not have permission for this action. Go to developers.facebook.com, open your app, navigate to App Settings > Advanced > Optional Permissions, and request 'pages_manage_posts', 'pages_read_engagement' and 'pages_manage_metadata' permissions. For video posts, also add 'pages_manage_engagement' permission.`
-          );
-        } else {
-          throw new Error(`Facebook API error: ${JSON.stringify(errorData)}`);
-        }
       }
+    );
 
-      const data = await response.json();
-      console.log(`Post success: ${JSON.stringify(data)}`);
-      return data.id;
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Facebook API Error Response:", errorData);
+      const error = errorData.error;
+
+      if (error?.code === 190) {
+        throw new Error(
+          "Invalid or expired access token. Please generate a new Page Access Token from Graph API Explorer."
+        );
+      } else if (error?.code === 10 || error?.code === 100) {
+        throw new Error(
+          "Missing required permissions. Please ensure you have admin access to this page and try again."
+        );
+      } else if (error?.code === 368) {
+        throw new Error(
+          "Rate limit exceeded. Please wait a few minutes and try again."
+        );
+      } else {
+        throw new Error(
+          error?.message || "Failed to create post. Check console for details."
+        );
+      }
     }
+
+    console.log("Post created successfully");
+    const data = await response.json();
+    return data.id;
   } catch (error) {
     console.error("Error in postToFacebookPage:", error);
     throw error;
   }
 };
 
-// ======================================================
-// Post Creation and Publishing
-// ======================================================
 export const createPost = async (
   userId: string,
-  postData: FacebookPost & { 
-    mediaFiles?: File[];
-    onUploadProgress?: (fileName: string, progress: number) => void;
-    onUploadError?: (fileName: string, error: string) => void;
-  }
+  post: FacebookPost
 ): Promise<string[]> => {
   try {
-    console.log(`Creating post for user ${userId}`);
-    console.log(
-      `Post content (truncated): ${postData.content.substring(0, 30)}...`
-    );
-    console.log(
-      `Target pages (${postData.pageIds.length}): ${postData.pageIds.join(
-        ", "
-      )}`
-    );
+    const pages = await getUserPages(userId);
+    const postIds: string[] = [];
 
-    // Keep track of successful video uploads to avoid showing errors for video posts
-    // that have already been uploaded successfully
-    const successfulVideoUploads = new Set<string>();
-
-    const postId = `post_${Date.now()}_${Math.random()
-      .toString(36)
-      .substring(2, 9)}`;
-    const allMedia: (string | File)[] = [];
-
-    if (postData.mediaUrls && postData.mediaUrls.length > 0) {
-      console.log(`Post includes ${postData.mediaUrls.length} media URLs`);
-      allMedia.push(...postData.mediaUrls);
-    }
-
-    if (postData.mediaFiles && postData.mediaFiles.length > 0) {
-      console.log(`Post includes ${postData.mediaFiles.length} media files`);
-      console.log(
-        `Media file types: ${postData.mediaFiles
-          .map((file) => file.type)
-          .join(", ")}`
-      );
-      allMedia.push(...postData.mediaFiles);
-    }
-
-    // Check if we have a video file (for error suppression logic)
-    const hasVideoFile = postData.mediaFiles && 
-      postData.mediaFiles.length === 1 && 
-      postData.mediaFiles[0].type.startsWith("video/");
-
-    // Extract progress callbacks
-    const { onUploadProgress, onUploadError } = postData;
-
-    // Create a post object for storage/tracking
-    const post = {
-      ...postData,
-      id: postId,
-      authorId: userId,
-      createdAt: new Date().toISOString(),
-      status: postData.scheduledFor ? "scheduled" : "published",
-      mediaUrls: postData.mediaUrls || [],
-    };
-
-    if (postData.scheduledFor) {
-      console.log(`Scheduling post for: ${postData.scheduledFor}`);
-      const scheduledPostsJson = localStorage.getItem("scheduled_posts");
-      const scheduledPosts = scheduledPostsJson
-        ? JSON.parse(scheduledPostsJson)
-        : [];
-      scheduledPosts.push(post);
-      localStorage.setItem("scheduled_posts", JSON.stringify(scheduledPosts));
-      return [postId];
-    }
-
-    console.log(`Posting immediately to ${postData.pageIds.length} pages`);
-    const postResults = [];
-    const errors = [];
-
-    for (const pageId of postData.pageIds) {
-      try {
-        console.log(`Fetching page data for pageId: ${pageId}`);
-        const pageDoc = await getDoc(doc(db, "facebook_pages", pageId));
-
-        if (pageDoc.exists()) {
-          const page = { id: pageDoc.id, ...pageDoc.data() } as FacebookPage;
-          console.log(`Found page: ${page.name} (FB ID: ${page.pageId})`);
-
-          try {
-            console.log(
-              `Attempting to post to page: ${page.name} (${page.pageId})`
-            );
-            const fbPostId = await postToFacebookPage(
-              page.pageId,
-              page.accessToken,
-              postData.content,
-              allMedia.length > 0 ? allMedia : undefined,
-              onUploadProgress,
-              onUploadError
-            );
-
-            console.log(
-              `Successfully posted to page ${page.name}, got post ID: ${fbPostId}`
-            );
-            postResults.push(fbPostId);
-            
-            // If we have a video file and got a post ID, mark this as a successful video upload
-            if (hasVideoFile) {
-              successfulVideoUploads.add(page.pageId);
-            }
-          } catch (error) {
-            const postError = error as Error;
-            console.error(`Error posting to page ${page.name}:`, postError);
-            
-            // Special handling for video uploads
-            if (hasVideoFile) {
-              // Check if this is just the "create post" error after video upload
-              if (postError.message.includes("insufficient_scope") && 
-                  successfulVideoUploads.has(page.pageId)) {
-                // Video was already uploaded successfully, so we can ignore this error
-                console.log(`Ignoring post creation error for page ${page.name} as video was already uploaded successfully`);
-                // We still want to return a success result
-                postResults.push(`video_upload_${Date.now()}`);
-                continue;
-              }
-            }
-            
-            // Call onUploadError for any media file in the post
-            if (postData.mediaFiles && onUploadError) {
-              postData.mediaFiles.forEach(file => {
-                if (file.type.startsWith("video/")) {
-                  onUploadError(file.name, postError.message || "Unknown error posting to Facebook");
-                }
-              });
-            }
-            
-            errors.push({
-              pageId: page.pageId,
-              pageName: page.name,
-              error: postError.message || "Unknown error",
-            });
-          }
-        } else {
-          console.error(`Page not found in database: ${pageId}`);
-          errors.push({
-            pageId,
-            error: "Page not found in database",
-          });
-        }
-      } catch (error) {
-        const fbError = error as Error;
-        console.error(`Error processing page ${pageId}:`, fbError);
-        errors.push({
-          pageId,
-          error: fbError.message || "Unknown error",
-        });
+    for (const pageId of post.pageIds) {
+      const page = pages.find((p) => p.pageId === pageId);
+      if (!page) {
+        throw new Error(`Page not found: ${pageId}`);
       }
-    }
 
-    if (postResults.length > 0) {
-      console.log(
-        `Successfully posted to ${postResults.length} of ${postData.pageIds.length} pages`
+      // Create the post
+      const postId = await postToFacebookPage(
+        page.pageId,
+        page.accessToken,
+        post.content,
+        post.mediaFiles || post.mediaUrls
       );
-      return postResults;
+      postIds.push(postId);
     }
 
-    console.error(`Failed to post to any pages. Errors:`, errors);
-    throw new Error(`Failed to post to any pages: ${JSON.stringify(errors)}`);
+    return postIds;
   } catch (error) {
     console.error("Error creating post:", error);
-    throw new Error("Failed to create post");
+    throw error;
   }
 };
 
-// ======================================================
-// Scheduled Post Management
-// ======================================================
-export const processScheduledPosts = async (): Promise<void> => {
+/**
+ * Processes scheduled posts that are due for publishing
+ * @returns Array of processed post IDs
+ */
+export const processScheduledPosts = async (
+  userId: string
+): Promise<string[]> => {
   try {
-    const scheduledPostsJson = localStorage.getItem("scheduled_posts");
-    if (!scheduledPostsJson) {
-      return;
-    }
+    // Get scheduled posts from localStorage
+    const postsJson = localStorage.getItem("scheduled_posts");
+    if (!postsJson) return [];
 
-    const scheduledPosts = JSON.parse(scheduledPostsJson) as FacebookPost[];
-    if (
-      !scheduledPosts ||
-      !Array.isArray(scheduledPosts) ||
-      scheduledPosts.length === 0
-    ) {
-      return;
-    }
-
+    const posts = JSON.parse(postsJson) as FacebookPost[];
     const now = new Date();
-    const postsToPublish = scheduledPosts.filter((post) => {
-      if (!post.scheduledFor) return false;
-      const scheduledTime = new Date(post.scheduledFor);
-      return scheduledTime <= now && post.status === "scheduled";
-    });
+    const processedPostIds: string[] = [];
 
-    if (postsToPublish.length === 0) {
-      return;
-    }
+    // Filter posts that are scheduled and due
+    const duePosts = posts.filter(
+      (post) =>
+        post.status === "scheduled" &&
+        post.scheduledFor &&
+        new Date(post.scheduledFor) <= now
+    );
 
-    for (const post of postsToPublish) {
-      for (const pageId of post.pageIds) {
-        try {
-          const pageDoc = await getDoc(doc(db, "facebook_pages", pageId));
+    // Process each due post
+    for (const post of duePosts) {
+      try {
+        // Create the post
+        const postIds = await createPost(userId, {
+          ...post,
+          status: "published",
+        });
+        processedPostIds.push(...postIds);
 
-          if (pageDoc.exists()) {
-            const page = { id: pageDoc.id, ...pageDoc.data() } as FacebookPage;
-            await postToFacebookPage(
-              page.pageId,
-              page.accessToken,
-              post.content,
-              post.mediaUrls,
-              undefined,
-              undefined
-            );
-            post.status = "published";
-          } else {
-            post.status = "failed";
-          }
-        } catch {
-          post.status = "failed";
-        }
+        // Update post status in localStorage
+        const updatedPosts = posts.map((p) =>
+          p.id === post.id ? { ...p, status: "published" } : p
+        );
+        localStorage.setItem("scheduled_posts", JSON.stringify(updatedPosts));
+      } catch (error) {
+        console.error(`Error processing scheduled post ${post.id}:`, error);
       }
     }
 
-    const filteredPosts = scheduledPosts.filter((post) => {
-      if (post.status === "scheduled") {
-        return true;
-      }
-      const wasProcessed = postsToPublish.some((p) => p.id === post.id);
-      if (wasProcessed && post.status === "failed") {
-        return true;
-      }
-      if (wasProcessed && post.status === "published") {
-        return false;
-      }
-      return true;
-    });
-
-    localStorage.setItem("scheduled_posts", JSON.stringify(filteredPosts));
+    return processedPostIds;
   } catch (error) {
-    throw error;
+    console.error("Error processing scheduled posts:", error);
+    return [];
   }
 };

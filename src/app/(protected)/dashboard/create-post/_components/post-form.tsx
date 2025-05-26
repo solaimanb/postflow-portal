@@ -469,20 +469,20 @@ export default function PostForm({
               {pages.length > 0 ? (
                 pages.map((page) => (
                   <label
-                    key={page.id}
+                    key={page.pageId}
                     className={cn(
                       "flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors hover:bg-muted/50",
-                      selectedPageIds.includes(page.id) &&
+                      selectedPageIds.includes(page.pageId) &&
                         "bg-primary/5 border-primary"
                     )}
                   >
                     <Checkbox
-                      checked={selectedPageIds.includes(page.id)}
+                      checked={selectedPageIds.includes(page.pageId)}
                       onCheckedChange={(checked: CheckedState) => {
                         setSelectedPageIds((prev) =>
                           checked
-                            ? [...prev, page.id]
-                            : prev.filter((id) => id !== page.id)
+                            ? [...prev, page.pageId]
+                            : prev.filter((id) => id !== page.pageId)
                         );
                       }}
                     />

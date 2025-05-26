@@ -9,21 +9,23 @@ export interface User {
 export interface FacebookTopic {
   id: string;
   topic: string;
-  date: string;
-  keywords: string[];
-  relatedTopics?: string[];
-  likes?: number;
-  comments?: number;
-  shares?: string | number;
-  url?: string;
   text?: string;
+  date: string;
+  time?: string;
+  popularityScore: number;
+  keywords: string[];
+  relatedTopics: string[];
+  like?: number;
+  comments?: number;
+  shares?: number;
+  url?: string;
   pageName?: string;
   postId?: string;
-  facebookId?: string;
-  postFacebookId?: string;
-  timestamp?: number;
-  time?: string;
-  topLevelUrl?: string;
+  type?: string;
+  pageUrl?: string;
+  videoUrl?: string;
+  videoThumbnail?: string;
+  imageUrl?: string;
 }
 
 export interface TopicSearchParams {

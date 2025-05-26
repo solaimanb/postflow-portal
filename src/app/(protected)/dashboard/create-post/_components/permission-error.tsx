@@ -1,5 +1,11 @@
 import { AlertCircle } from "lucide-react";
-import { PERMISSION_CODES } from "./shared-styles";
+
+const PERMISSION_CODES = [
+  { code: "pages_manage_posts", description: "Required for creating posts" },
+  { code: "pages_read_engagement", description: "Required for reading page content" },
+  { code: "pages_manage_engagement", description: "Required for managing posts and media" },
+  { code: "publish_video", description: "Required for video uploads" },
+];
 
 export function PermissionError() {
   return (

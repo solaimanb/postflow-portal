@@ -6,25 +6,37 @@
 const config = {
   // Apify configuration
   apify: {
-    apiKey: process.env.NEXT_PUBLIC_APIFY_API_KEY || 'apify_api_dvFCDo7YOhl5HvNbcCGLarLZWri3Id2qcKmx',
-    actorId: process.env.NEXT_PUBLIC_APIFY_ACTOR_ID || 'easyapi~facebook-posts-search-scraper',
+    apiKey:
+      process.env.NEXT_PUBLIC_APIFY_API_KEY ||
+      "apify_api_dvFCDo7YOhl5HvNbcCGLarLZWri3Id2qcKmx",
+    actorId:
+      process.env.NEXT_PUBLIC_APIFY_ACTOR_ID || "",
   },
-  
+
   // Firebase configuration
   firebase: {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyC5RtPuwb0c3V0U2nl-8nR9ENYDqfFxGyU',
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'postflow-portal.firebaseapp.com',
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'postflow-portal',
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 'postflow-portal.firebasestorage.app',
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '964887768204',
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '1:964887768204:web:7a3fc7d8a72b090c299fa9',
+    apiKey:
+      process.env.NEXT_PUBLIC_FIREBASE_API_KEY ||
+      "AIzaSyC5RtPuwb0c3V0U2nl-8nR9ENYDqfFxGyU",
+    authDomain:
+      process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN ||
+      "postflow-portal.firebaseapp.com",
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "postflow-portal",
+    storageBucket:
+      process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+      "postflow-portal.firebasestorage.app",
+    messagingSenderId:
+      process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "964887768204",
+    appId:
+      process.env.NEXT_PUBLIC_FIREBASE_APP_ID ||
+      "1:964887768204:web:7a3fc7d8a72b090c299fa9",
   },
-  
+
   // Facebook configuration
   facebook: {
-    appId: process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || '1747450662646807',
-    accessToken: process.env.NEXT_PUBLIC_ACCESS_TOKEN || '',
-  }
+    appId: process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || "1747450662646807",
+    accessToken: process.env.NEXT_PUBLIC_ACCESS_TOKEN || "",
+  },
 };
 
-export default config; 
+export default config;

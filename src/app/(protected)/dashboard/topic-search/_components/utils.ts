@@ -20,10 +20,13 @@ export function downloadTopicsAsCSV(topics: FacebookTopic[]) {
     "Content",
     "Page",
     "Date",
-    "Likes",
+    "Reactions",
     "Comments",
     "Shares",
+    "Type",
     "URL",
+    "Video URL",
+    "Image URL"
   ];
   const rows = topics.map((topic) => [
     escapeCSV(topic.text || topic.topic || ""),
@@ -32,7 +35,10 @@ export function downloadTopicsAsCSV(topics: FacebookTopic[]) {
     escapeCSV(topic.likes || 0),
     escapeCSV(topic.comments || 0),
     escapeCSV(topic.shares || 0),
+    escapeCSV(topic.type || ""),
     escapeCSV(topic.url || ""),
+    escapeCSV(topic.videoUrl || ""),
+    escapeCSV(topic.imageUrl || "")
   ]);
 
   const csvContent = [

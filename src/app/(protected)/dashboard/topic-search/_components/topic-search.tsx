@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { TopicSearchParams } from "@/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,49 +18,60 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { useForm } from "react-hook-form";
 
-interface TopicSearchProps {
-  onSearch: (params: TopicSearchParams) => Promise<void>;
-  isLoading: boolean;
+export interface TopicSearchProps {
+  onSearch: (params: TopicSearchParams) => void;
+  isLoading?: boolean;
+  initialValues?: TopicSearchParams | null;
 }
 
-export function TopicSearch({ onSearch, isLoading }: TopicSearchProps) {
-  const [keyword, setKeyword] = useState("");
-  const [startDate, setStartDate] = useState<Date | undefined>();
-  const [endDate, setEndDate] = useState<Date | undefined>();
-  const [maxItems, setMaxItems] = useState("20");
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!keyword.trim()) return;
-
-    onSearch({
-      keyword: keyword.trim(),
-      startDate: startDate ? format(startDate, "yyyy-MM-dd") : undefined,
-      endDate: endDate ? format(endDate, "yyyy-MM-dd") : undefined,
-      maxItems: parseInt(maxItems) || 20,
+export function TopicSearch({
+  onSearch,
+  isLoading,
+  initialValues,
+}: TopicSearchProps) {
+  const { register, handleSubmit, watch, setValue } =
+    useForm<TopicSearchParams>({
+      defaultValues: initialValues || {
+        keyword: "",
+        startDate: undefined,
+        endDate: undefined,
+      },
     });
-  };
+
+  const keyword = watch("keyword");
+  const startDate = watch("startDate");
+  const endDate = watch("endDate");
+  const maxItems = watch("maxItems");
+
+  const onSubmit = handleSubmit((data) => {
+    if (!data.keyword?.trim()) return;
+    onSearch(data);
+  });
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-4">
       <div className="flex items-start gap-4">
         <div className="flex-1">
           <Input
-            id="keyword"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            {...register("keyword")}
             placeholder="Enter keywords to search Facebook topics..."
             className="w-full h-10 text-base"
             required
           />
         </div>
         <div>
-          <Select value={maxItems} onValueChange={setMaxItems}>
-            <SelectTrigger className="w-[140px] h-10">
+          <Select
+            value={maxItems?.toString() || "20"}
+            onValueChange={(value) => setValue("maxItems", parseInt(value))}
+          >
+            <SelectTrigger className="w-40 h-10">
               <SelectValue placeholder="Max results" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="5">5 results</SelectItem>
+              <SelectItem value="10">10 results</SelectItem>
               <SelectItem value="20">20 results</SelectItem>
               <SelectItem value="50">50 results</SelectItem>
               <SelectItem value="100">100 results</SelectItem>
@@ -74,6 +85,7 @@ export function TopicSearch({ onSearch, isLoading }: TopicSearchProps) {
           <Popover>
             <PopoverTrigger asChild>
               <Button
+                type="button"
                 variant="outline"
                 className={cn(
                   "w-full h-10 justify-start text-left font-normal text-base",
@@ -81,14 +93,19 @@ export function TopicSearch({ onSearch, isLoading }: TopicSearchProps) {
                 )}
               >
                 <CalendarIcon className="mr-2 h-5 w-5" />
-                {startDate ? format(startDate, "PP") : "Start date"}
+                {startDate ? format(new Date(startDate), "PP") : "Start date"}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
-                selected={startDate}
-                onSelect={setStartDate}
+                selected={startDate ? new Date(startDate) : undefined}
+                onSelect={(date) =>
+                  setValue(
+                    "startDate",
+                    date ? format(date, "yyyy-MM-dd") : undefined
+                  )
+                }
                 initialFocus
               />
             </PopoverContent>
@@ -99,6 +116,7 @@ export function TopicSearch({ onSearch, isLoading }: TopicSearchProps) {
           <Popover>
             <PopoverTrigger asChild>
               <Button
+                type="button"
                 variant="outline"
                 className={cn(
                   "w-full h-10 justify-start text-left font-normal text-base",
@@ -106,14 +124,19 @@ export function TopicSearch({ onSearch, isLoading }: TopicSearchProps) {
                 )}
               >
                 <CalendarIcon className="mr-2 h-5 w-5" />
-                {endDate ? format(endDate, "PP") : "End date"}
+                {endDate ? format(new Date(endDate), "PP") : "End date"}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="start">
               <Calendar
                 mode="single"
-                selected={endDate}
-                onSelect={setEndDate}
+                selected={endDate ? new Date(endDate) : undefined}
+                onSelect={(date) =>
+                  setValue(
+                    "endDate",
+                    date ? format(date, "yyyy-MM-dd") : undefined
+                  )
+                }
                 initialFocus
               />
             </PopoverContent>
@@ -122,7 +145,7 @@ export function TopicSearch({ onSearch, isLoading }: TopicSearchProps) {
 
         <Button
           type="submit"
-          disabled={isLoading || !keyword.trim()}
+          disabled={isLoading || !keyword?.trim()}
           className="w-[140px] h-10"
         >
           <SearchIcon className="h-5 w-5 mr-2" />
@@ -133,4 +156,4 @@ export function TopicSearch({ onSearch, isLoading }: TopicSearchProps) {
       </div>
     </form>
   );
-} 
+}

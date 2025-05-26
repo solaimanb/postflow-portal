@@ -19,8 +19,12 @@ export function PermissionsGuide() {
       description: "Required for managing page metadata",
     },
     {
+      name: "publish_video",
+      description: "Required for uploading and publishing videos",
+    },
+    {
       name: "pages_manage_engagement",
-      description: "Required for video uploads",
+      description: "Required for managing post engagement",
     },
   ];
 
