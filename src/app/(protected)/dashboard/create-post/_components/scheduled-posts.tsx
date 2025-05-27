@@ -35,42 +35,73 @@ export function ScheduledPosts({ posts, onPostNow }: ScheduledPostsProps) {
       const postsToPublish = posts.filter((post) => {
         if (!post.scheduledFor) return false;
         const scheduledTime = new Date(post.scheduledFor);
-        return scheduledTime <= now && post.status === "scheduled";
+        // Add a small buffer (30 seconds) to account for processing time
+        return (
+          scheduledTime <= now &&
+          now.getTime() - scheduledTime.getTime() < 30000 &&
+          post.status === "scheduled"
+        );
       });
 
       for (const post of postsToPublish) {
         try {
+          // Update status first to prevent duplicate publishing
+          const allPosts = JSON.parse(
+            localStorage.getItem("scheduled_posts") || "[]"
+          ) as FacebookPost[];
+
+          const updatedPosts = allPosts.map((p) =>
+            p.id === post.id ? { ...p, status: "publishing" } : p
+          );
+
+          localStorage.setItem("scheduled_posts", JSON.stringify(updatedPosts));
+
+          // Then attempt to publish
           await onPostNow({
             content: post.content,
             pageIds: post.pageIds,
             mediaUrls: post.mediaUrls,
           });
 
-          const allPosts = JSON.parse(
-            localStorage.getItem("scheduled_posts") || "[]"
-          ) as FacebookPost[];
-          const remainingPosts = allPosts.filter((p) => p.id !== post.id);
+          // After successful publish, remove from scheduled posts
+          const remainingPosts = updatedPosts.filter((p) => p.id !== post.id);
           localStorage.setItem(
             "scheduled_posts",
             JSON.stringify(remainingPosts)
           );
-          toast.success(
-            `Scheduled post published successfully: ${post.content.substring(
-              0,
-              30
-            )}...`
-          );
+
+          toast.success("Scheduled post published successfully!", {
+            description:
+              post.content.length > 50
+                ? `${post.content.substring(0, 50)}...`
+                : post.content,
+          });
         } catch (error) {
           console.error("Failed to publish scheduled post:", error);
-          toast.error(
-            `Failed to publish scheduled post: ${
-              error instanceof Error ? error.message : "Unknown error"
-            }`
+
+          // Revert status on failure
+          const allPosts = JSON.parse(
+            localStorage.getItem("scheduled_posts") || "[]"
+          ) as FacebookPost[];
+
+          const revertedPosts = allPosts.map((p) =>
+            p.id === post.id ? { ...p, status: "scheduled" } : p
           );
+
+          localStorage.setItem(
+            "scheduled_posts",
+            JSON.stringify(revertedPosts)
+          );
+
+          toast.error("Failed to publish scheduled post", {
+            description:
+              error instanceof Error ? error.message : "Unknown error",
+          });
         }
       }
     };
 
+    // Check every minute
     checkScheduledPosts();
     const intervalId = setInterval(checkScheduledPosts, 60000);
 

@@ -70,6 +70,9 @@ export default function PostForm({
   const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
   const [scheduleDate, setScheduleDate] = useState<Date>();
   const [selectedTime, setSelectedTime] = useState<string>("");
+  const [timeSource, setTimeSource] = useState<"manual" | "dropdown" | null>(
+    null
+  );
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [mediaPreview, setMediaPreview] = useState<{ [key: string]: string }>(
@@ -80,6 +83,7 @@ export default function PostForm({
     [key: string]: MediaUploadStatus;
   }>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const timeInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -614,71 +618,168 @@ export default function PostForm({
 
               {/* Time Selection */}
               <div className="space-y-2">
-                <Label className="text-sm">Time</Label>
-                <Select value={selectedTime} onValueChange={setSelectedTime}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select time">
-                      {selectedTime ? (
-                        <div className="flex items-center gap-2">
-                          <ClockIcon className="h-4 w-4 text-muted-foreground" />
-                          <span>{selectedTime}</span>
-                        </div>
-                      ) : (
-                        <span>Select time</span>
-                      )}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <ScrollArea className="h-80">
-                      {/* Quick Time Slots */}
-                      <SelectGroup>
-                        <SelectLabel className="text-xs font-semibold text-muted-foreground/70 px-2 py-1.5">
-                          Quick Select
-                        </SelectLabel>
-                        {quickTimeSlots.map((slot) => (
-                          <SelectItem
-                            key={slot.time}
-                            value={slot.time}
-                            className="flex items-center gap-2"
-                          >
+                <div className="flex justify-between items-center">
+                  <Label className="text-sm">Time</Label>
+                  {(selectedTime || scheduleDate) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedTime("");
+                        setScheduleDate(undefined);
+                        setTimeSource(null);
+                        if (timeInputRef.current) {
+                          timeInputRef.current.value = "";
+                        }
+                      }}
+                      className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+                    >
+                      Reset Schedule
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    type="time"
+                    ref={timeInputRef}
+                    className="w-[140px]"
+                    disabled={timeSource === "dropdown"}
+                    value={
+                      timeSource === "manual"
+                        ? timeInputRef.current?.value || ""
+                        : ""
+                    }
+                    onChange={(e) => {
+                      const time = e.target.value;
+                      if (time) {
+                        setTimeSource("manual");
+                        const [hours, minutes] = time.split(":");
+                        const hour = parseInt(hours);
+                        const period = hour >= 12 ? "PM" : "AM";
+                        const adjustedHour = hour % 12 || 12;
+                        const formattedTime = `${adjustedHour}:${minutes} ${period}`;
+                        setSelectedTime(formattedTime);
+                      } else {
+                        setSelectedTime("");
+                        setTimeSource(null);
+                      }
+                    }}
+                  />
+                  <div className="flex-1">
+                    <Select
+                      value={
+                        timeSource === "dropdown" &&
+                        selectedTime &&
+                        !selectedTime.includes(":")
+                          ? quickTimeSlots.some(
+                              (slot) => slot.time === selectedTime
+                            )
+                            ? `quick-${selectedTime}`
+                            : `${Object.entries(timeGroups)
+                                .find(([groupName]) =>
+                                  timeGroups[
+                                    groupName as keyof TimeGroups
+                                  ].includes(selectedTime)
+                                )?.[0]
+                                .toLowerCase()}-${selectedTime}`
+                          : undefined
+                      }
+                      disabled={timeSource === "manual"}
+                      onOpenChange={(open) => {
+                        if (open) {
+                          if (timeInputRef.current) {
+                            timeInputRef.current.value = "";
+                          }
+                          if (timeSource === "manual") {
+                            setSelectedTime("");
+                            setTimeSource(null);
+                          }
+                        }
+                      }}
+                      onValueChange={(value) => {
+                        const actualTime = value.includes("quick-")
+                          ? value.replace("quick-", "")
+                          : value.split("-").slice(1).join("-");
+                        setSelectedTime(actualTime);
+                        setTimeSource("dropdown");
+                        if (timeInputRef.current) {
+                          timeInputRef.current.value = "";
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Or select time">
+                          {timeSource === "dropdown" && selectedTime ? (
                             <div className="flex items-center gap-2">
-                              <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                              <span className="font-medium">{slot.label}</span>
-                              <span className="text-xs text-muted-foreground">
-                                ({slot.time})
-                              </span>
+                              <ClockIcon className="h-4 w-4 text-muted-foreground" />
+                              <span>{selectedTime}</span>
                             </div>
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
+                          ) : (
+                            <span>Or select time</span>
+                          )}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <ScrollArea className="h-80">
+                          {/* Quick Time Slots */}
+                          <SelectGroup>
+                            <SelectLabel className="text-xs font-semibold text-muted-foreground/70 px-2 py-1.5">
+                              Quick Select
+                            </SelectLabel>
+                            {quickTimeSlots.map((slot) => (
+                              <SelectItem
+                                key={`quick-${slot.label
+                                  .toLowerCase()
+                                  .replace(/\s+/g, "-")}`}
+                                value={`quick-${slot.time}`}
+                                className="flex items-center gap-2"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                                  <span className="font-medium">
+                                    {slot.label}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    ({slot.time})
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
 
-                      <div className="h-px bg-border/50 my-2" />
+                          <div className="h-px bg-border/50 my-2" />
 
-                      {/* Time Groups */}
-                      {(
-                        Object.entries(timeGroups) as [
-                          keyof TimeGroups,
-                          string[]
-                        ][]
-                      ).map(([group, times]) => (
-                        <SelectGroup key={group}>
-                          <SelectLabel className="text-xs font-semibold text-muted-foreground/70 px-2 py-1.5">
-                            {group}
-                          </SelectLabel>
-                          {times.map((time) => (
-                            <SelectItem
-                              key={time}
-                              value={time}
-                              className="flex items-center gap-2"
-                            >
-                              <span className="font-medium">{time}</span>
-                            </SelectItem>
+                          {/* Time Groups */}
+                          {(
+                            Object.entries(timeGroups) as [
+                              keyof TimeGroups,
+                              string[]
+                            ][]
+                          ).map(([group, times]) => (
+                            <SelectGroup key={group}>
+                              <SelectLabel className="text-xs font-semibold text-muted-foreground/70 px-2 py-1.5">
+                                {group}
+                              </SelectLabel>
+                              {times.map((time) => (
+                                <SelectItem
+                                  key={`time-${group.toLowerCase()}-${time.replace(
+                                    /\s|:/g,
+                                    ""
+                                  )}`}
+                                  value={`${group.toLowerCase()}-${time}`}
+                                  className="flex items-center gap-2"
+                                >
+                                  <span className="font-medium">{time}</span>
+                                </SelectItem>
+                              ))}
+                            </SelectGroup>
                           ))}
-                        </SelectGroup>
-                      ))}
-                    </ScrollArea>
-                  </SelectContent>
-                </Select>
+                        </ScrollArea>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
             </div>
 
