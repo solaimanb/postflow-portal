@@ -213,7 +213,7 @@ export function TopicDialog({ topic, open, onOpenChange }: TopicDialogProps) {
             </div>
 
             {/* Actions */}
-            <div className="w-full bg-background border-t shadow-lg lg:col-span-2 pt-2 px-6">
+            <div className="w-full bg-background border-t lg:col-span-2 pt-2 px-6">
               <div className="flex flex-col sm:flex-row items-stretch gap-2 max-w-full md:max-w-[85vw] lg:max-w-[75vw] xl:max-w-[65vw] 2xl:max-w-[55vw] mx-auto">
                 {topic.url && (
                   <Button
