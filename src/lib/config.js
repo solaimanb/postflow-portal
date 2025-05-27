@@ -6,11 +6,8 @@
 const config = {
   // Apify configuration
   apify: {
-    apiKey:
-      process.env.NEXT_PUBLIC_APIFY_API_KEY ||
-      "apify_api_dvFCDo7YOhl5HvNbcCGLarLZWri3Id2qcKmx",
-    actorId:
-      process.env.NEXT_PUBLIC_APIFY_ACTOR_ID || "",
+    apiKey: process.env.NEXT_PUBLIC_APIFY_API_KEY,
+    actorId: process.env.NEXT_PUBLIC_APIFY_ACTOR_ID,
   },
 
   // Firebase configuration
@@ -34,8 +31,8 @@ const config = {
 
   // Facebook configuration
   facebook: {
-    appId: process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || "1747450662646807",
-    accessToken: process.env.NEXT_PUBLIC_ACCESS_TOKEN || "",
+    appId: process.env.NEXT_PUBLIC_FACEBOOK_APP_ID,
+    accessToken: process.env.NEXT_PUBLIC_ACCESS_TOKEN,
   },
 };
 
