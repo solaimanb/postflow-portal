@@ -1,5 +1,5 @@
 import { FacebookMediaUploadCallbacks } from "../types";
-import { FacebookTokenError } from './token';
+import { FacebookTokenError } from "./token";
 
 /**
  * Helper function to detect if a string is a URL
@@ -16,41 +16,86 @@ const isUrl = (str: string): boolean => {
 export class FacebookMediaError extends Error {
   constructor(message: string, public code?: string) {
     super(message);
-    this.name = 'FacebookMediaError';
+    this.name = "FacebookMediaError";
   }
 }
 
-const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif'];
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif"];
 const ALLOWED_VIDEO_TYPES = [
-  'video/mp4',
-  'video/quicktime',
-  'video/x-ms-wmv',
-  'video/x-msvideo',
+  "video/mp4",
+  "video/quicktime",
+  "video/x-ms-wmv",
+  "video/x-msvideo",
 ];
 const MAX_IMAGE_SIZE = 4 * 1024 * 1024; // 4MB
 const MAX_VIDEO_SIZE = 1024 * 1024 * 1024; // 1GB
 
-export const validateMediaFile = (file: File) => {
+/**
+ * Convert WebP to PNG using Canvas
+ */
+const convertWebPToPNG = async (file: File): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    if (!file.type.includes("webp")) {
+      resolve(file);
+      return;
+    }
+
+    const img = new Image();
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    img.onload = () => {
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx?.drawImage(img, 0, 0);
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const newFile = new File([blob], file.name.replace(".webp", ".png"), {
+            type: "image/png",
+          });
+          resolve(newFile);
+        } else {
+          reject(new Error("Failed to convert WebP to PNG"));
+        }
+      }, "image/png");
+    };
+
+    img.onerror = () => reject(new Error("Failed to load WebP image"));
+    img.src = URL.createObjectURL(file);
+  });
+};
+
+export const validateMediaFile = async (file: File): Promise<File> => {
+  // If it's a WebP file, convert it to PNG first
+  if (file.type.includes("webp")) {
+    console.log("Converting WebP to PNG:", file.name);
+    const convertedFile = await convertWebPToPNG(file);
+    file = convertedFile;
+  }
+
   if (ALLOWED_IMAGE_TYPES.includes(file.type)) {
     if (file.size > MAX_IMAGE_SIZE) {
       throw new FacebookMediaError(
         `Image size exceeds maximum allowed size of ${MAX_IMAGE_SIZE} bytes`,
-        'IMAGE_TOO_LARGE'
+        "IMAGE_TOO_LARGE"
       );
     }
   } else if (ALLOWED_VIDEO_TYPES.includes(file.type)) {
     if (file.size > MAX_VIDEO_SIZE) {
       throw new FacebookMediaError(
         `Video size exceeds maximum allowed size of ${MAX_VIDEO_SIZE} bytes`,
-        'VIDEO_TOO_LARGE'
+        "VIDEO_TOO_LARGE"
       );
     }
   } else {
     throw new FacebookMediaError(
       `Unsupported media type: ${file.type}`,
-      'UNSUPPORTED_MEDIA_TYPE'
+      "UNSUPPORTED_MEDIA_TYPE"
     );
   }
+
+  return file;
 };
 
 /**
@@ -228,31 +273,31 @@ export const uploadMedia = async (
   media: File | string
 ): Promise<string> => {
   try {
-    if (typeof media === 'string') {
-      if (!isUrl(media)) {
-        throw new FacebookMediaError('Invalid media URL', 'INVALID_URL');
+    if (typeof media === "string") {
+      if (isUrl(media)) {
+        return await uploadImageFromUrl(pageId, accessToken, media);
       }
-      return await uploadImageFromUrl(pageId, accessToken, media);
+      throw new FacebookMediaError("Invalid media URL");
     }
 
-    validateMediaFile(media);
+    // Validate and potentially convert the file
+    const validatedFile = await validateMediaFile(media);
 
-    if (ALLOWED_IMAGE_TYPES.includes(media.type)) {
-      return await uploadImageFile(pageId, accessToken, media);
-    } else if (ALLOWED_VIDEO_TYPES.includes(media.type)) {
-      return await uploadVideoFile(pageId, accessToken, media);
+    if (ALLOWED_IMAGE_TYPES.includes(validatedFile.type)) {
+      return await uploadImageFile(pageId, accessToken, validatedFile);
+    } else if (ALLOWED_VIDEO_TYPES.includes(validatedFile.type)) {
+      return await uploadVideoFile(pageId, accessToken, validatedFile);
     }
 
-    throw new FacebookMediaError(
-      `Unsupported media type: ${media.type}`,
-      'UNSUPPORTED_MEDIA_TYPE'
-    );
+    throw new FacebookMediaError("Unsupported media type");
   } catch (error) {
-    if (error instanceof FacebookMediaError || error instanceof FacebookTokenError) {
+    console.error("Error uploading media:", error);
+    if (
+      error instanceof FacebookMediaError ||
+      error instanceof FacebookTokenError
+    ) {
       throw error;
     }
-    throw new FacebookMediaError(
-      error instanceof Error ? error.message : 'Failed to upload media'
-    );
+    throw new FacebookMediaError("Failed to upload media");
   }
 };

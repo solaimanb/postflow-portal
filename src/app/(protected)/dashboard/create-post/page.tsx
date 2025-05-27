@@ -9,6 +9,8 @@ import { createFacebookPost } from "@/lib/services/facebook/posts/create";
 import { FacebookPostError } from "@/lib/services/facebook/posts/create";
 import { FacebookTokenError } from "@/lib/services/facebook/api/token";
 import type { FacebookPage, PostScheduleParams, FacebookPost } from "@/types";
+import { getScheduledPosts } from "@/lib/services/facebook/posts/schedule";
+import { saveScheduledPosts } from "@/lib/services/facebook/posts/schedule";
 
 import { PostHeader } from "./_components/post-header";
 import { PermissionError } from "./_components/permission-error";
@@ -33,17 +35,12 @@ export default function CreatePostPage() {
     }
   }, []);
 
-  const refreshScheduledPosts = useCallback(() => {
+  const refreshScheduledPosts = useCallback(async () => {
     try {
-      const postsJson = localStorage.getItem("scheduled_posts");
-      if (postsJson) {
-        const posts = JSON.parse(postsJson);
-        if (Array.isArray(posts)) {
-          setScheduledPosts(
-            posts.filter((post) => post.status === "scheduled")
-          );
-        }
-      }
+      const posts = await getScheduledPosts();
+      setScheduledPosts(
+        posts.filter((post: FacebookPost) => post.status === "scheduled")
+      );
     } catch (error) {
       console.error("Error loading scheduled posts:", error);
     }
@@ -118,15 +115,15 @@ export default function CreatePostPage() {
         scheduledFor: params.scheduledFor,
         status: "scheduled",
         mediaUrls: params.mediaUrls,
+        mediaFiles: params.mediaFiles,
       };
 
-      const existingPostsJson = localStorage.getItem("scheduled_posts");
-      const existingPosts = existingPostsJson
-        ? JSON.parse(existingPostsJson)
-        : [];
+      // Get current posts
+      const posts = await getScheduledPosts();
 
-      const updatedPosts = [...existingPosts, newPost];
-      localStorage.setItem("scheduled_posts", JSON.stringify(updatedPosts));
+      // Add new post and save
+      const updatedPosts = [...posts, newPost];
+      await saveScheduledPosts(updatedPosts);
 
       toast.success("Post scheduled", {
         description: `Post scheduled for ${new Date(
@@ -134,7 +131,7 @@ export default function CreatePostPage() {
         ).toLocaleString()}`,
       });
 
-      refreshScheduledPosts();
+      await refreshScheduledPosts();
     } catch (error) {
       console.error("Error scheduling post:", error);
       if (error instanceof FacebookTokenError) {
@@ -164,7 +161,11 @@ export default function CreatePostPage() {
       refreshScheduledPosts();
     }
 
-    const intervalId = setInterval(refreshScheduledPosts, 10000);
+    const checkScheduledPosts = async () => {
+      await refreshScheduledPosts();
+    };
+
+    const intervalId = setInterval(checkScheduledPosts, 10000);
     return () => clearInterval(intervalId);
   }, [fetchUserPages, refreshScheduledPosts]);
 
@@ -183,7 +184,11 @@ export default function CreatePostPage() {
         </CardContent>
       </Card>
 
-      <ScheduledPosts posts={scheduledPosts} onPostNow={handlePostNow} />
+      <ScheduledPosts
+        userId={getCurrentUser()?.email || ""}
+        posts={scheduledPosts}
+        onRefresh={refreshScheduledPosts}
+      />
     </div>
   );
 }

@@ -195,7 +195,6 @@ export default function PostForm({
         const errorMessage =
           error instanceof Error ? error.message : "An unknown error occurred";
 
-        // Only show errors that are actual failures, not permission/fallback messages
         if (
           !errorMessage.toLowerCase().includes("facebook") &&
           !errorMessage.toLowerCase().includes("permission") &&
@@ -224,29 +223,6 @@ export default function PostForm({
     try {
       setIsSubmitting(true);
 
-      // For scheduled posts, check if there are video files
-      const hasVideoFiles = mediaFiles.some((file) =>
-        file.type.startsWith("video/")
-      );
-
-      // Check if there are any files
-      if (mediaFiles.length > 0) {
-        if (hasVideoFiles) {
-          toast.error(
-            "Videos cannot be scheduled. Please use 'Post Now' for videos or remove them before scheduling.",
-            { id: toastId }
-          );
-          return;
-        } else {
-          toast.error(
-            "Files cannot be scheduled directly. Please use URLs for scheduled posts.",
-            { id: toastId }
-          );
-          return;
-        }
-      }
-
-      // Combine date and time
       const scheduledDateTime = new Date(scheduleDate);
       const [timeStr, period] = selectedTime.split(" ");
       const [hours, minutes] = timeStr.split(":").map(Number);
@@ -258,11 +234,34 @@ export default function PostForm({
       }
       scheduledDateTime.setHours(adjustedHours, minutes, 0, 0);
 
+      if (scheduledDateTime <= new Date()) {
+        toast.error(
+          "Cannot schedule posts in the past. Please select a future date and time.",
+          {
+            id: toastId,
+          }
+        );
+        return;
+      }
+
+      const hasVideoFiles = mediaFiles.some((file) =>
+        file.type.startsWith("video/")
+      );
+
+      if (hasVideoFiles) {
+        toast.error(
+          "Videos cannot be scheduled. Please use 'Post Now' for videos or remove them before scheduling.",
+          { id: toastId }
+        );
+        return;
+      }
+
       await onSchedulePost({
         content,
         pageIds: selectedPageIds,
         scheduledFor: scheduledDateTime.toISOString(),
         mediaUrls: mediaUrl ? [mediaUrl] : undefined,
+        mediaFiles: mediaFiles.length > 0 ? mediaFiles : undefined,
       });
 
       resetForm();
@@ -288,7 +287,6 @@ export default function PostForm({
     setMediaUploadStatus({});
   };
 
-  // Generate time options in 15-minute intervals with better organization
   const generateTimeOptions = (): TimeGroups => {
     const timeGroups: TimeGroups = {
       Morning: [],
@@ -611,6 +609,9 @@ export default function PostForm({
                       selected={scheduleDate}
                       onSelect={setScheduleDate}
                       initialFocus
+                      disabled={(date) =>
+                        date < new Date(new Date().setHours(0, 0, 0, 0))
+                      }
                     />
                   </PopoverContent>
                 </Popover>

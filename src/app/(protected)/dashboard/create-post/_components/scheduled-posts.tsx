@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Clock, Calendar, Users } from "lucide-react";
-import type { FacebookPost, FacebookPage } from "@/types";
+import { Clock, Calendar, Users, Trash2 } from "lucide-react";
+import type { FacebookPost } from "@/types";
 import {
   Table,
   TableBody,
@@ -15,98 +15,69 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useEffect } from "react";
-import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
+import {
+  processScheduledPosts,
+  deleteScheduledPost,
+  getPageNames,
+} from "@/lib/services/facebook/posts/schedule";
 
 interface ScheduledPostsProps {
+  userId: string;
   posts: FacebookPost[];
-  onPostNow: (params: {
-    content: string;
-    pageIds: string[];
-    mediaUrls?: string[];
-  }) => Promise<void>;
+  onRefresh?: () => void;
 }
 
-export function ScheduledPosts({ posts, onPostNow }: ScheduledPostsProps) {
+export function ScheduledPosts({
+  userId,
+  posts,
+  onRefresh,
+}: ScheduledPostsProps) {
+  const [postToDelete, setPostToDelete] = useState<FacebookPost | null>(null);
+
   useEffect(() => {
-    const checkScheduledPosts = async () => {
-      const now = new Date();
-      const postsToPublish = posts.filter((post) => {
-        if (!post.scheduledFor) return false;
-        const scheduledTime = new Date(post.scheduledFor);
-        // Add a small buffer (30 seconds) to account for processing time
-        return (
-          scheduledTime <= now &&
-          now.getTime() - scheduledTime.getTime() < 30000 &&
-          post.status === "scheduled"
-        );
-      });
-
-      for (const post of postsToPublish) {
-        try {
-          // Update status first to prevent duplicate publishing
-          const allPosts = JSON.parse(
-            localStorage.getItem("scheduled_posts") || "[]"
-          ) as FacebookPost[];
-
-          const updatedPosts = allPosts.map((p) =>
-            p.id === post.id ? { ...p, status: "publishing" } : p
-          );
-
-          localStorage.setItem("scheduled_posts", JSON.stringify(updatedPosts));
-
-          // Then attempt to publish
-          await onPostNow({
-            content: post.content,
-            pageIds: post.pageIds,
-            mediaUrls: post.mediaUrls,
-          });
-
-          // After successful publish, remove from scheduled posts
-          const remainingPosts = updatedPosts.filter((p) => p.id !== post.id);
-          localStorage.setItem(
-            "scheduled_posts",
-            JSON.stringify(remainingPosts)
-          );
-
-          toast.success("Scheduled post published successfully!", {
-            description:
-              post.content.length > 50
-                ? `${post.content.substring(0, 50)}...`
-                : post.content,
-          });
-        } catch (error) {
-          console.error("Failed to publish scheduled post:", error);
-
-          // Revert status on failure
-          const allPosts = JSON.parse(
-            localStorage.getItem("scheduled_posts") || "[]"
-          ) as FacebookPost[];
-
-          const revertedPosts = allPosts.map((p) =>
-            p.id === post.id ? { ...p, status: "scheduled" } : p
-          );
-
-          localStorage.setItem(
-            "scheduled_posts",
-            JSON.stringify(revertedPosts)
-          );
-
-          toast.error("Failed to publish scheduled post", {
-            description:
-              error instanceof Error ? error.message : "Unknown error",
-          });
-        }
-      }
+    const checkScheduledPosts = () => {
+      processScheduledPosts(userId)
+        .then(() => {
+          if (onRefresh) {
+            onRefresh();
+          }
+        })
+        .catch((error) => {
+          console.error("Error checking scheduled posts:", error);
+        });
     };
 
-    // Check every minute
     checkScheduledPosts();
-    const intervalId = setInterval(checkScheduledPosts, 60000);
+    const intervalId = setInterval(checkScheduledPosts, 15000);
 
     return () => clearInterval(intervalId);
-  }, [posts, onPostNow]);
+  }, [userId, onRefresh]);
+
+  const handleDelete = async (post: FacebookPost) => {
+    try {
+      await deleteScheduledPost(post.id);
+      if (onRefresh) {
+        onRefresh();
+      }
+      setPostToDelete(null);
+    } catch (error) {
+      console.error("Error deleting post:", error);
+    }
+  };
 
   if (posts.length === 0) return null;
 
@@ -116,23 +87,6 @@ export function ScheduledPosts({ posts, onPostNow }: ScheduledPostsProps) {
       return format(date, "MMM d, yyyy 'at' h:mm a");
     } catch {
       return dateString;
-    }
-  };
-
-  const getPageNames = (pageIds: string[]) => {
-    // Get all pages from localStorage
-    const pagesJson = localStorage.getItem("user_pages");
-    if (!pagesJson) return pageIds;
-
-    try {
-      const allPages = JSON.parse(pagesJson) as FacebookPage[];
-      return pageIds.map((id) => {
-        const page = allPages.find((p) => p.pageId === id);
-        return page ? page.name : id;
-      });
-    } catch (error) {
-      console.error("Error parsing pages:", error);
-      return pageIds;
     }
   };
 
@@ -180,12 +134,12 @@ export function ScheduledPosts({ posts, onPostNow }: ScheduledPostsProps) {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[45%] py-4">
+                <TableHead className="w-[40%] py-4">
                   <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
                     Content
                   </div>
                 </TableHead>
-                <TableHead className="w-[35%]">
+                <TableHead className="w-[30%]">
                   <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
                     <Calendar className="h-4 w-4" />
                     Scheduled For
@@ -196,6 +150,9 @@ export function ScheduledPosts({ posts, onPostNow }: ScheduledPostsProps) {
                     <Users className="h-4 w-4" />
                     Target Pages
                   </div>
+                </TableHead>
+                <TableHead className="w-[10%] text-right">
+                  <span className="sr-only">Actions</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -223,6 +180,57 @@ export function ScheduledPosts({ posts, onPostNow }: ScheduledPostsProps) {
                     <div className="text-sm font-medium text-foreground/80">
                       {renderPageNames(post.pageIds)}
                     </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <AlertDialog
+                      open={postToDelete?.id === post.id}
+                      onOpenChange={(open) => !open && setPostToDelete(null)}
+                    >
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => setPostToDelete(post)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Delete post</span>
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>
+                            Delete Scheduled Post
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Are you sure you want to delete this scheduled post?
+                            This action cannot be undone.
+                            <div className="mt-4 p-4 rounded-lg bg-muted/50">
+                              <p className="text-sm text-foreground/90 line-clamp-3">
+                                {post.content}
+                              </p>
+                              <p className="text-sm text-muted-foreground mt-2">
+                                Scheduled for:{" "}
+                                {formatDate(post.scheduledFor || "")}
+                              </p>
+                            </div>
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel
+                            onClick={() => setPostToDelete(null)}
+                          >
+                            Cancel
+                          </AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={() => handleDelete(post)}
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </TableCell>
                 </TableRow>
               ))}
