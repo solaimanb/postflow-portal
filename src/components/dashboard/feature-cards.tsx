@@ -41,10 +41,10 @@ export function FeatureCards({ pagesCount }: FeatureCardsProps) {
       description:
         "Search and analyze Facebook topics across pages. Monitor brand mentions, competitor activities, trending discussions, and potential PR issues in real-time.",
       cost: { value: "$1.42", label: "Cost per search" },
-      stats: {
-        label: "Searches this month",
-        value: "142",
-      },
+    //   stats: {
+    //     label: "Searches this month",
+    //     value: "142",
+    //   },
       features: [
         "Real-time topic monitoring",
         "Historical data analysis",
@@ -75,10 +75,10 @@ export function FeatureCards({ pagesCount }: FeatureCardsProps) {
       description:
         "Manage and moderate comments across your pages. Add unlimited strategic comments to shift conversations and boost positive engagement.",
       cost: { value: "$3.00", label: "Cost per comment" },
-      stats: {
-        label: "Comments this month",
-        value: "142",
-      },
+    //   stats: {
+    //     label: "Comments this month",
+    //     value: "142",
+    //   },
       features: [
         "Strategic comment placement",
         "Conversation influence",
