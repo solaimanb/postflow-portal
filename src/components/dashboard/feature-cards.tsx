@@ -42,10 +42,10 @@ export function FeatureCards({ pagesCount }: FeatureCardsProps) {
       description:
         "Search and analyze Facebook topics across pages. Monitor brand mentions, competitor activities, trending discussions, and potential PR issues in real-time.",
       cost: { value: "$1.42", label: "Cost per search" },
-    //   stats: {
-    //     label: "Searches this month",
-    //     value: "142",
-    //   },
+      //   stats: {
+      //     label: "Searches this month",
+      //     value: "142",
+      //   },
       features: [
         "Real-time topic monitoring",
         "Historical data analysis",
@@ -76,10 +76,10 @@ export function FeatureCards({ pagesCount }: FeatureCardsProps) {
       description:
         "Manage and moderate comments across your pages. Add unlimited strategic comments to shift conversations and boost positive engagement.",
       cost: { value: "$3.00", label: "Cost per comment" },
-    //   stats: {
-    //     label: "Comments this month",
-    //     value: "142",
-    //   },
+      //   stats: {
+      //     label: "Comments this month",
+      //     value: "142",
+      //   },
       features: [
         "Strategic comment placement",
         "Conversation influence",
@@ -125,16 +125,51 @@ interface FeatureCardProps {
 function FeatureCard({ feature }: FeatureCardProps) {
   const Icon = feature.icon;
 
+  const getBgColorClass = (color: string) => {
+    switch (color) {
+      case "indigo":
+        return "bg-indigo-100 text-indigo-600";
+      case "pink":
+        return "bg-pink-100 text-pink-600";
+      case "blue":
+        return "bg-blue-100 text-blue-600";
+      case "emerald":
+        return "bg-emerald-100 text-emerald-600";
+      default:
+        return "bg-gray-100 text-gray-600";
+    }
+  };
+
+  const getBadgeColorClass = (color: string) => {
+    switch (color) {
+      case "indigo":
+        return "bg-indigo-100 text-indigo-600";
+      case "pink":
+        return "bg-pink-100 text-pink-600";
+      case "blue":
+        return "bg-blue-100 text-blue-600";
+      case "emerald":
+        return "bg-emerald-100 text-emerald-600";
+      default:
+        return "bg-gray-100 text-gray-600";
+    }
+  };
+
+  const iconColorClass = getBgColorClass(feature.iconBg);
+  const badgeColorClass = getBadgeColorClass(feature.iconBg);
+
   return (
     <Card>
       <CardContent className="pt-6">
         <div className="space-y-6">
           {/* Header */}
           <div className="flex items-start gap-4">
-            <div className={`rounded-xl bg-${feature.iconBg}-100 p-3`}>
-              <Icon className={`h-12 w-12 text-${feature.iconBg}-600`} />
+            <div className={`rounded-xl p-3 ${iconColorClass}`}>
+              <Icon className="h-12 w-12" />
             </div>
-            <CardTitle className="text-2xl font-bold">{feature.title}</CardTitle>
+            <CardTitle className="text-2xl font-bold">
+              {feature.title}
+            </CardTitle>
           </div>
 
           <CardDescription>{feature.description}</CardDescription>
@@ -142,19 +177,20 @@ function FeatureCard({ feature }: FeatureCardProps) {
           <div className="space-y-4">
             {/* Cost and Stats */}
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">{feature.cost.label}</span>
-              <Badge
-                variant="secondary"
-                className={`bg-${feature.iconBg}-100 text-${feature.iconBg}-600`}
-              >
+              <span className="text-muted-foreground">
+                {feature.cost.label}
+              </span>
+              <Badge variant="secondary" className={badgeColorClass}>
                 {feature.cost.value}
               </Badge>
             </div>
-            
+
             {/* Additional Stats */}
             {feature.stats && (
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">{feature.stats.label}</span>
+                <span className="text-muted-foreground">
+                  {feature.stats.label}
+                </span>
                 <span className="font-medium">{feature.stats.value}</span>
               </div>
             )}
