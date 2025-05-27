@@ -1,7 +1,7 @@
 export function DashboardHeader() {
   return (
-    <div className="mb-6 space-y-2">
-      <h1 className="text-2xl lg:text-3xl font-semibold">
+    <div className="flex flex-col items-center text-center justify-center lg:text-left lg:items-start lg:justify-start gap-2 mb-6">
+      <h1 className="text-2xl lg:text-3xl font-bold">
         Welcome to FB Topics Portal
       </h1>
       <p className="text-muted-foreground">
