@@ -41,6 +41,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 
 export function CommentsTable() {
   const [savedComments, setSavedComments] = useState<
@@ -273,73 +276,93 @@ export function CommentsTable() {
     }
   };
 
-  const truncateText = (text: string, maxLength: number = 30) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + "...";
-  };
-
   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-        <CardTitle>Saved Comments</CardTitle>
-        <div className="relative w-64">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+    <Card className="border-none shadow-none p-6">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 px-0">
+        <div className="space-y-1">
+          <CardTitle>Saved Comments</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Manage and view your saved post comments
+          </p>
+        </div>
+        <div className="relative w-72">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search comments..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-8"
+            className="pl-9 pr-4 py-5 bg-muted/50 border-none"
           />
         </div>
       </CardHeader>
-      <CardContent className="p-0">
+
+      <CardContent className="p-0 pb-4">
         {loadingComments ? (
-          <div className="text-center py-4">
-            <p className="text-sm text-muted-foreground">Loading comments...</p>
+          <div className="space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center space-x-4 px-4 py-3">
+                <Skeleton className="h-12 w-[60%]" />
+                <Skeleton className="h-12 w-[20%]" />
+                <Skeleton className="h-12 w-[20%]" />
+              </div>
+            ))}
           </div>
         ) : filteredComments.length === 0 ? (
-          <div className="text-center py-4">
-            <p className="text-sm text-muted-foreground">No comments found</p>
+          <div className="text-center py-12">
+            <p className="text-lg font-medium text-muted-foreground mb-2">
+              No comments found
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {searchTerm
+                ? "Try adjusting your search term"
+                : "Start saving comments to see them here"}
+            </p>
           </div>
         ) : (
-          <div className="rounded-md border">
+          <div className="rounded-lg border bg-card">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Post Link</TableHead>
-                  <TableHead>Comments</TableHead>
-                  <TableHead>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-[45%]">Post Link</TableHead>
+                  <TableHead className="w-[25%]">Comments</TableHead>
+                  <TableHead className="w-[15%]">
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 flex items-center gap-1"
+                      className="h-8 flex items-center gap-1 font-medium -ml-2"
                       onClick={() => handleSort("commentCount")}
                     >
                       Count
-                      {sortField === "commentCount" &&
-                        (sortDirection === "asc" ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        ))}
+                      {sortField === "commentCount" && (
+                        <Badge variant="secondary" className="ml-2 font-normal">
+                          {sortDirection === "asc" ? (
+                            <ChevronUp className="h-3 w-3" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3" />
+                          )}
+                        </Badge>
+                      )}
                     </Button>
                   </TableHead>
-                  <TableHead>
+                  <TableHead className="w-[15%]">
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-8 flex items-center gap-1"
+                      className="h-8 flex items-center gap-1 font-medium -ml-2"
                       onClick={() => handleSort("createdAt")}
                     >
                       Created
-                      {sortField === "createdAt" &&
-                        (sortDirection === "asc" ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        ))}
+                      {sortField === "createdAt" && (
+                        <Badge variant="secondary" className="ml-2 font-normal">
+                          {sortDirection === "asc" ? (
+                            <ChevronUp className="h-3 w-3" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3" />
+                          )}
+                        </Badge>
+                      )}
                     </Button>
                   </TableHead>
                   <TableHead className="w-[50px]"></TableHead>
@@ -348,8 +371,17 @@ export function CommentsTable() {
               <TableBody>
                 {filteredComments.map((item) => (
                   <React.Fragment key={item.id}>
-                    <TableRow>
-                      <TableCell>{truncateText(item.postLink)}</TableCell>
+                    <TableRow className="group">
+                      <TableCell className="font-medium">
+                        <a
+                          href={item.postLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline text-sm truncate block max-w-[400px]"
+                        >
+                          {item.postLink}
+                        </a>
+                      </TableCell>
                       <TableCell>
                         <Button
                           variant="ghost"
@@ -359,21 +391,27 @@ export function CommentsTable() {
                               expandedRow === item.id ? null : item.id
                             )
                           }
+                          className="gap-2"
                         >
-                          View {item.comments.length} comments
+                          <Badge variant="secondary">
+                            {item.comments.length}
+                          </Badge>
+                          {expandedRow === item.id ? "Hide" : "View"} comments
                         </Button>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-muted-foreground">
                         {item.commentCount || item.comments.length}
                       </TableCell>
-                      <TableCell>{formatDate(item.createdAt)}</TableCell>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {formatDate(item.createdAt)}
+                      </TableCell>
                       <TableCell>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-8 w-8 p-0 text-destructive hover:text-destructive/90"
+                              className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive/90"
                               disabled={isDeleting}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -404,54 +442,62 @@ export function CommentsTable() {
                     </TableRow>
                     {expandedRow === item.id && (
                       <TableRow>
-                        <TableCell colSpan={5} className="p-4 bg-muted/30">
-                          <div className="space-y-2 max-h-60 overflow-y-auto">
-                            {item.comments.map((comment, index) => (
-                              <div
-                                key={index}
-                                className="flex items-center justify-between p-2 rounded-md bg-background"
-                              >
-                                <span className="text-sm flex-1 mr-4">
-                                  {comment}
-                                </span>
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 w-8 p-0 text-destructive hover:text-destructive/90"
-                                      disabled={isDeleting}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Delete Comment
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Are you sure you want to delete this
-                                        comment? This action cannot be undone.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>
-                                        Cancel
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() =>
-                                          handleDeleteComment(item.id, index)
-                                        }
-                                        className="bg-destructive hover:bg-destructive/90"
-                                      >
-                                        Delete
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                        <TableCell colSpan={5} className="p-0 border-0">
+                          <div className="py-4 px-6 bg-muted/30 border-y">
+                            <ScrollArea className="h-[300px]">
+                              <div className="space-y-2">
+                                {item.comments.map((comment, index) => (
+                                  <div
+                                    key={index}
+                                    className="flex items-center justify-between p-3 rounded-lg bg-background border gap-4 group/comment hover:shadow-sm transition-shadow"
+                                  >
+                                    <span className="text-sm flex-1">
+                                      {comment}
+                                    </span>
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 w-8 p-0 opacity-0 group-hover/comment:opacity-100 transition-opacity text-destructive hover:text-destructive/90"
+                                          disabled={isDeleting}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>
+                                            Delete Comment
+                                          </AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Are you sure you want to delete this
+                                            comment? This action cannot be
+                                            undone.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>
+                                            Cancel
+                                          </AlertDialogCancel>
+                                          <AlertDialogAction
+                                            onClick={() =>
+                                              handleDeleteComment(
+                                                item.id,
+                                                index
+                                              )
+                                            }
+                                            className="bg-destructive hover:bg-destructive/90"
+                                          >
+                                            Delete
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
+                            </ScrollArea>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -462,11 +508,17 @@ export function CommentsTable() {
             </Table>
 
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-4 border-t">
+              <div className="flex items-center justify-between px-6 py-4 border-t bg-muted/30">
                 <div className="text-sm text-muted-foreground">
-                  Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-                  {Math.min(currentPage * itemsPerPage, totalItems)} of{" "}
-                  {totalItems} results
+                  Showing{" "}
+                  <span className="font-medium">
+                    {(currentPage - 1) * itemsPerPage + 1}
+                  </span>{" "}
+                  to{" "}
+                  <span className="font-medium">
+                    {Math.min(currentPage * itemsPerPage, totalItems)}
+                  </span>{" "}
+                  of <span className="font-medium">{totalItems}</span> results
                 </div>
                 <div className="flex gap-2">
                   <Button
@@ -474,6 +526,7 @@ export function CommentsTable() {
                     size="sm"
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage === 1}
+                    className="gap-2"
                   >
                     Previous
                   </Button>
@@ -482,6 +535,7 @@ export function CommentsTable() {
                     size="sm"
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage === totalPages}
+                    className="gap-2"
                   >
                     Next
                   </Button>
