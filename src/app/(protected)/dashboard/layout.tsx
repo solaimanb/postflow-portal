@@ -44,9 +44,13 @@ export default function ProtectedLayout({
           <AppSidebar onLogout={handleLogout} />
           <main className="flex-1 overflow-auto w-full">
             <div className="flex lg:hidden items-center justify-between p-4 border-b">
-              <div className="flex items-center gap-1">
-                <GlobeLock className="h-6 w-6 shrink-0" />
-                <h1 className="text-xl font-black tracking-tight">PORTAL</h1>
+              <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
+                <div className="rounded-lg bg-blue-600 p-1">
+                  <GlobeLock className="h-5 w-5 shrink-0 text-white" />
+                </div>
+                <h2 className="text-xl font-black tracking-tight text-sidebar-foreground group-data-[collapsible=icon]:hidden">
+                  PORTAL
+                </h2>
               </div>
               <SidebarTrigger />
             </div>
