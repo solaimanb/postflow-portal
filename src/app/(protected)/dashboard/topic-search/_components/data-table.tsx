@@ -41,7 +41,12 @@ export function DataTable<TData, TValue>({
   onDownloadCSV,
   onRowClick,
 }: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [sorting, setSorting] = React.useState<SortingState>([
+    {
+      id: "date",
+      desc: true
+    }
+  ]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
   );
@@ -71,6 +76,12 @@ export function DataTable<TData, TValue>({
       pagination: {
         pageSize: 10,
       },
+      sorting: [
+        {
+          id: "date",
+          desc: true,
+        },
+      ],
     },
   });
 

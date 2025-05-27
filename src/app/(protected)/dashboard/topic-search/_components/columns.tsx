@@ -142,6 +142,11 @@ export const getColumns = (): ColumnDef<Topic>[] => [
         </div>
       );
     },
+    sortingFn: (rowA, rowB) => {
+      const dateA = new Date(rowA.getValue("date") as string).getTime();
+      const dateB = new Date(rowB.getValue("date") as string).getTime();
+      return dateA > dateB ? 1 : dateA < dateB ? -1 : 0;
+    },
   },
   {
     id: "engagement",
