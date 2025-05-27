@@ -37,32 +37,23 @@ export async function POST(req: NextRequest) {
     const cleanEndpoint = endpoint.startsWith("/")
       ? endpoint.substring(1)
       : endpoint;
-    const url = `${baseUrl}/${cleanEndpoint}?token=${apiKey}`;
+    const url = `${baseUrl}/${cleanEndpoint}`;
     console.log(`[APIFY PROXY] Full URL: ${url}`);
 
     const options: RequestInit = {
       method,
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
       },
     };
 
     if (payload && (method === "POST" || method === "PUT")) {
-      // For run-sync endpoints, send the payload directly as the body
-      if (cleanEndpoint.includes("run-sync")) {
-        options.body = JSON.stringify(payload);
-        console.log(
-          `[APIFY PROXY] Direct payload for sync endpoint:`,
-          JSON.stringify(payload).substring(0, 500)
-        );
-      } else {
-        // For regular endpoints, use the standard format with 'run' wrapper
-        options.body = JSON.stringify({ run: { input: payload } });
-        console.log(
-          `[APIFY PROXY] Standard payload with run wrapper:`,
-          JSON.stringify({ run: { input: payload } }).substring(0, 500)
-        );
-      }
+      options.body = JSON.stringify(payload);
+      console.log(
+        `[APIFY PROXY] Request payload:`,
+        JSON.stringify(payload).substring(0, 500)
+      );
     }
 
     console.log(`[APIFY PROXY] Sending request to Apify...`);

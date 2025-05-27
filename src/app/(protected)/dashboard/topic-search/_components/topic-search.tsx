@@ -1,6 +1,10 @@
-import React from "react";
-import { Input } from "@/components/ui/input";
+import * as React from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { Loader2 } from "lucide-react";
+import * as z from "zod";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -8,22 +12,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CalendarIcon, SearchIcon } from "lucide-react";
-import { Calendar } from "@/components/ui/calendar";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-import { useForm } from "react-hook-form";
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+} from "@/components/ui/form";
 import { TopicSearchParams } from "@/lib/services/apify";
+
+const formSchema = z.object({
+  keyword: z.string().min(1, "Keyword is required"),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  maxItems: z.number().min(1).max(100),
+});
 
 export interface TopicSearchProps {
   onSearch: (params: TopicSearchParams) => void;
-  isLoading?: boolean;
-  initialValues?: TopicSearchParams | null;
+  isLoading: boolean;
+  initialValues?: TopicSearchParams;
 }
 
 export function TopicSearch({
@@ -31,129 +39,133 @@ export function TopicSearch({
   isLoading,
   initialValues,
 }: TopicSearchProps) {
-  const { register, handleSubmit, watch, setValue } =
-    useForm<TopicSearchParams>({
-      defaultValues: initialValues || {
-        keyword: "",
-        startDate: undefined,
-        endDate: undefined,
-      },
-    });
-
-  const keyword = watch("keyword");
-  const startDate = watch("startDate");
-  const endDate = watch("endDate");
-  const maxItems = watch("maxItems");
-
-  const onSubmit = handleSubmit((data) => {
-    if (!data.keyword?.trim()) return;
-    onSearch(data);
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      keyword: initialValues?.keyword || "",
+      startDate: initialValues?.startDate || "",
+      endDate: initialValues?.endDate || "",
+      maxItems: initialValues?.maxItems || 20,
+    },
   });
 
+  function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!values.keyword?.trim()) return;
+    onSearch({
+      ...values,
+      startDate: values.startDate || undefined,
+      endDate: values.endDate || undefined,
+    });
+  }
+
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div className="flex items-start gap-4">
-        <div className="flex-1">
-          <Input
-            {...register("keyword")}
-            placeholder="Enter keywords to search Facebook topics..."
-            className="w-full h-10 text-base"
-            required
-          />
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <div className="flex items-start gap-4">
+          <div className="flex-1">
+            <FormField
+              control={form.control}
+              name="keyword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <Input
+                      placeholder="Enter keywords to search Facebook topics..."
+                      className="w-full h-10 text-base"
+                      disabled={isLoading}
+                      {...field}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
+          <div>
+            <FormField
+              control={form.control}
+              name="maxItems"
+              render={({ field }) => (
+                <FormItem>
+                  <Select
+                    disabled={isLoading}
+                    value={field.value.toString()}
+                    onValueChange={(value) => field.onChange(parseInt(value))}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="w-40 h-10">
+                        <SelectValue placeholder="Max results" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="5">5 results</SelectItem>
+                      <SelectItem value="10">10 results</SelectItem>
+                      <SelectItem value="20">20 results</SelectItem>
+                      <SelectItem value="50">50 results</SelectItem>
+                      <SelectItem value="100">100 results</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FormItem>
+              )}
+            />
+          </div>
         </div>
-        <div>
-          <Select
-            value={maxItems?.toString() || "20"}
-            onValueChange={(value) => setValue("maxItems", parseInt(value))}
+
+        <div className="flex items-center gap-4">
+          <div className="flex-1 grid grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="startDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Start Date</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="date"
+                      className="w-full h-10"
+                      disabled={isLoading}
+                      {...field}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="endDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>End Date</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="date"
+                      className="w-full h-10"
+                      disabled={isLoading}
+                      {...field}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            type="submit"
+            size="lg"
+            disabled={isLoading || !form.watch("keyword")?.trim()}
           >
-            <SelectTrigger className="w-40 h-10">
-              <SelectValue placeholder="Max results" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="5">5 results</SelectItem>
-              <SelectItem value="10">10 results</SelectItem>
-              <SelectItem value="20">20 results</SelectItem>
-              <SelectItem value="50">50 results</SelectItem>
-              <SelectItem value="100">100 results</SelectItem>
-            </SelectContent>
-          </Select>
+            {isLoading ? (
+              <span className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Searching...
+              </span>
+            ) : (
+              "Search"
+            )}
+          </Button>
         </div>
-      </div>
-
-      <div className="flex items-start gap-4">
-        <div className="flex-1">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className={cn(
-                  "w-full h-10 justify-start text-left font-normal text-base",
-                  !startDate && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-5 w-5" />
-                {startDate ? format(new Date(startDate), "PP") : "Start date"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={startDate ? new Date(startDate) : undefined}
-                onSelect={(date) =>
-                  setValue(
-                    "startDate",
-                    date ? format(date, "yyyy-MM-dd") : undefined
-                  )
-                }
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        <div className="flex-1">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className={cn(
-                  "w-full h-10 justify-start text-left font-normal text-base",
-                  !endDate && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-5 w-5" />
-                {endDate ? format(new Date(endDate), "PP") : "End date"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={endDate ? new Date(endDate) : undefined}
-                onSelect={(date) =>
-                  setValue(
-                    "endDate",
-                    date ? format(date, "yyyy-MM-dd") : undefined
-                  )
-                }
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        <Button
-          type="submit"
-          disabled={isLoading || !keyword?.trim()}
-          className="w-[140px] h-10"
-        >
-          <SearchIcon className="h-5 w-5 mr-2" />
-          <span className="text-base">
-            {isLoading ? "Searching..." : "Search"}
-          </span>
-        </Button>
-      </div>
-    </form>
+      </form>
+    </Form>
   );
 }

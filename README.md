@@ -148,7 +148,7 @@ NEXT_PUBLIC_ACCESS_TOKEN=your-facebook-access-token
 
 # Apify Configuration
 NEXT_PUBLIC_APIFY_API_KEY=your-apify-api-key
-NEXT_PUBLIC_APIFY_ACTOR_ID=danek~facebook-search-ppr
+NEXT_PUBLIC_APIFY_ACTOR_ID=alien_force~facebook-search-scraper
 ```
 
 To obtain these values:

@@ -3,7 +3,8 @@ import { Topic } from "@/lib/services/apify";
 export function downloadTopicsAsCSV(topics: Topic[]) {
   if (topics.length === 0) return;
 
-  const escapeCSV = (field: string | number) => {
+  const escapeCSV = (field: string | number | undefined) => {
+    if (field === undefined) return "";
     const value = String(field);
     if (
       value.includes(",") ||
@@ -18,26 +19,35 @@ export function downloadTopicsAsCSV(topics: Topic[]) {
 
   const headers = [
     "Content",
-    "Page",
+    "Page Name",
     "Date",
-    "Reactions",
+    "Likes",
     "Comments",
     "Shares",
+    "Views",
+    "Plays",
     "Type",
-    "URL",
+    "Post URL",
+    "Author Profile",
     "Video URL",
+    "Video Thumbnail",
     "Image URL"
   ];
+  
   const rows = topics.map((topic) => [
     escapeCSV(topic.text || topic.topic || ""),
-    escapeCSV(topic.pageName || topic.relatedTopics?.[0] || "Unknown"),
-    escapeCSV(new Date(topic.time || topic.date).toLocaleString()),
+    escapeCSV(topic.pageName || "Unknown"),
+    escapeCSV(new Date(topic.date).toLocaleString()),
     escapeCSV(topic.likes || 0),
     escapeCSV(topic.comments || 0),
     escapeCSV(topic.shares || 0),
+    escapeCSV(topic.viewCount || 0),
+    escapeCSV(topic.playCount || 0),
     escapeCSV(topic.type || ""),
     escapeCSV(topic.url || ""),
+    escapeCSV(topic.pageUrl || ""),
     escapeCSV(topic.videoUrl || ""),
+    escapeCSV(topic.videoThumbnail || ""),
     escapeCSV(topic.imageUrl || "")
   ]);
 

@@ -20,6 +20,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Topic } from "@/lib/services/apify/types";
 import { toast } from "sonner";
+import Image from "next/image";
 
 /**
  * Table column definitions for the Topic Search results
@@ -64,7 +65,11 @@ export const getColumns = (): ColumnDef<Topic>[] => [
       const text = row.getValue("text") as string;
       return (
         <div className="max-w-[500px] truncate text-xs">
-          {text || "No content available"}
+          {text
+            ? text.length > 40
+              ? text.slice(0, 40) + "..."
+              : text
+            : "No content available"}
         </div>
       );
     },
@@ -77,22 +82,47 @@ export const getColumns = (): ColumnDef<Topic>[] => [
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Page
+          Author
           <ArrowUpDown className="ml-2 h-4 w-4" />
         </Button>
       );
     },
     cell: ({ row }) => {
       const pageName = row.getValue("pageName") as string;
+      const pageUrl = row.original.pageUrl;
+      const pageAvatar = row.original.pageAvatar;
+
       return (
-        <div className="whitespace-nowrap text-xs">
-          {pageName || "Unknown Page"}
+        <div className="flex items-center space-x-2">
+          {pageAvatar && (
+            <Image
+              src={pageAvatar}
+              alt={pageName}
+              className="w-6 h-6 rounded-full"
+              width={24}
+              height={24}
+            />
+          )}
+          <span className="text-xs">
+            {pageUrl ? (
+              <a
+                href={pageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline"
+              >
+                {pageName || "Unknown"}
+              </a>
+            ) : (
+              pageName || "Unknown"
+            )}
+          </span>
         </div>
       );
     },
   },
   {
-    accessorKey: "time",
+    accessorKey: "date",
     header: ({ column }) => {
       return (
         <Button
@@ -105,31 +135,23 @@ export const getColumns = (): ColumnDef<Topic>[] => [
       );
     },
     cell: ({ row }) => {
-      const date = row.getValue("time") as string;
+      const date = row.getValue("date") as string;
       return (
-        <div className="whitespace-nowrap text-xs">
-          {new Date(date).toLocaleString()}
+        <div className="text-xs">
+          {date ? new Date(date).toLocaleString() : "Invalid Date"}
         </div>
       );
     },
   },
   {
-    accessorKey: "likes",
-    header: ({ column }) => {
-      return (
-        <Button
-          variant="ghost"
-          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-        >
-          Engagement
-          <ArrowUpDown className="ml-2 h-4 w-4" />
-        </Button>
-      );
-    },
+    id: "engagement",
+    header: "Engagement",
     cell: ({ row }) => {
-      const likes = row.getValue("likes") as number;
-      const comments = row.original.comments as number;
-      const shares = row.original.shares as number;
+      const likes = row.original.likes || 0;
+      const comments = row.original.comments || 0;
+      const shares = row.original.shares || 0;
+      const views = row.original.viewCount || 0;
+      const plays = row.original.playCount || 0;
 
       const formatNumber = (num: number) => {
         if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
@@ -138,19 +160,13 @@ export const getColumns = (): ColumnDef<Topic>[] => [
       };
 
       return (
-        <div className="flex space-x-2 text-xs">
-          <span title="Reactions" className="flex items-center">
-            <span className="text-blue-600 mr-1">👍</span>
-            {formatNumber(likes || 0)}
-          </span>
-          <span title="Comments" className="flex items-center">
-            <span className="text-green-600 mr-1">💬</span>
-            {formatNumber(comments || 0)}
-          </span>
-          <span title="Shares" className="flex items-center">
-            <span className="text-orange-600 mr-1">↗️</span>
-            {formatNumber(shares || 0)}
-          </span>
+        <div className="flex items-center space-x-4 text-xs">
+          <span title="Likes">👍 {formatNumber(likes)}</span>
+          <span title="Comments">💬 {formatNumber(comments)}</span>
+          <span title="Shares">↗️ {formatNumber(shares)}</span>
+          {(views > 0 || plays > 0) && (
+            <span title="Views">👁️ {formatNumber(Math.max(views, plays))}</span>
+          )}
         </div>
       );
     },

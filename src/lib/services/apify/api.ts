@@ -1,8 +1,4 @@
-import type {
-  TopicSearchParams,
-  ActorRunInput,
-  Topic,
-} from "./types";
+import type { TopicSearchParams, ActorRunInput, Topic } from "./types";
 
 /**
  * Prepares the input for a specific Apify actor based on its ID
@@ -13,47 +9,63 @@ const prepareActorInput = (
 ): ActorRunInput => {
   const actorType = actorId.toLowerCase();
 
-  // Generic input structure that works with most Facebook scraping actors
-  const baseInput = {
-    query: params.keyword,
-    maxPosts: params.maxItems || 20,
-    startDate: params.startDate,
-    endDate: params.endDate,
-    language: params.language || "en",
-    proxyConfiguration: { useApifyProxy: true },
-  };
+  // For alien_force~facebook-search-scraper actor
+  if (actorType.includes("alien_force~facebook-search-scraper")) {
+    const now = new Date();
+    
+    // If no dates specified, search recent posts without date constraints
+    if (!params.startDate && !params.endDate) {
+      return {
+        search_type: "posts",
+        keyword: params.keyword,
+        filter_by_recent_posts: true, // Force recent posts when no dates
+        results_limit: params.maxItems || 20,
+        min_wait_time_in_sec: 1,
+        max_wait_time_in_sec: 4,
+        cookies: []
+      };
+    }
 
-  // Actor-specific adjustments
-  if (actorType.includes("facebook-search-ppr")) {
+    // If dates are specified, validate them
+    let startDate = params.startDate;
+    let endDate = params.endDate;
+
+    // Convert dates to Date objects for comparison
+    const startDateTime = startDate ? new Date(startDate) : null;
+    const endDateTime = endDate ? new Date(endDate) : null;
+
+    // Validate dates are in the past
+    if (startDateTime && startDateTime > now) {
+      console.warn("Start date is in future, defaulting to 30 days ago");
+      const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+      startDate = thirtyDaysAgo.toISOString().split('T')[0];
+    }
+
+    if (endDateTime && endDateTime > now) {
+      console.warn("End date is in future, defaulting to current date");
+      endDate = now.toISOString().split('T')[0];
+    }
+
     return {
-      ...baseInput,
       search_type: "posts",
-      max_posts: baseInput.maxPosts,
-      limit: baseInput.maxPosts,
-      maxResults: baseInput.maxPosts,
-      dateFrom: baseInput.startDate,
-      dateTo: baseInput.endDate,
+      keyword: params.keyword,
+      filter_by_recent_posts: params.filterByRecent || false,
+      results_limit: params.maxItems || 20,
+      min_wait_time_in_sec: 1,
+      max_wait_time_in_sec: 4,
+      start_date: startDate,
+      end_date: endDate,
+      cookies: []
     };
   }
 
-  if (actorType.includes("facebook-posts-scraper") || actorType.includes("facebook-scraper")) {
-    return {
-      startUrls: [
-        {
-          url: `https://www.facebook.com/search/posts/?q=${encodeURIComponent(params.keyword)}`,
-        },
-      ],
-      ...baseInput,
-      commentsMode: "NONE",
-      reactionsMode: "NONE",
-      maxComments: 0,
-      maxPostDate: baseInput.endDate,
-      minPostDate: baseInput.startDate,
-    };
-  }
-
-  // Default return the base input
-  return baseInput;
+  // Default return for backwards compatibility
+  return {
+    keyword: params.keyword,
+    results_limit: params.maxItems || 20,
+    start_date: params.startDate,
+    end_date: params.endDate
+  };
 };
 
 /**
@@ -68,98 +80,74 @@ const transformActorOutput = (
     ? rawData.slice(0, params.maxItems)
     : rawData;
 
-  const actorType = actorId.toLowerCase();
-
-  if (actorType.includes("facebook-search-ppr")) {
+  // For alien_force~facebook-search-scraper actor
+  if (actorId.toLowerCase().includes("alien_force~facebook-search-scraper")) {
     return limitedData.map((item: Record<string, unknown>, index: number) => {
-      const text = (item.message as string) || "";
-      const timestamp = item.timestamp as number;
-      const postDate = timestamp
-        ? new Date(timestamp * 1000).toISOString()
-        : new Date().toISOString();
-      const comments = (item.comments_count as number) || 0;
-      const shares = (item.reshare_count as number) || 0;
-      const reactions = (item.reactions as Record<string, number>) || {};
-      const totalReactions = Object.values(reactions).reduce(
-        (sum, count) => sum + count,
-        0
-      );
-      const popularityScore = totalReactions + comments * 2 + shares * 3;
-      const extractedKeywords = text
-        .split(/\s+/)
-        .filter((word) => word.length > 4)
-        .slice(0, 5);
+      const text = item.text as string || "";
+      const createTime = item.create_time as number;
+      const postDate = createTime ? new Date(createTime).toISOString() : new Date().toISOString();
+      
+      const likes = (item.like_count as number) || 0;
+      const comments = (item.comment_count as number) || 0;
+      const shares = (item.share_count as number) || 0;
+      const views = (item.view_count as number) || 0;
+      const plays = (item.play_count as number) || 0;
+      
+      const popularityScore = likes + (comments * 2) + (shares * 3);
 
-      const keywords = [params.keyword, ...extractedKeywords].filter(
-        (v, i, a) => a.indexOf(v) === i
-      );
-
-      const author = (item.author as Record<string, unknown>) || {};
-      const pageName = (author.name as string) || "Facebook Page";
-      const pageUrl = (author.url as string) || "";
-
-      const videoUrl = item.video as string;
-      const videoThumbnail = item.video_thumbnail as string;
-      const imageUrl = item.image as string;
+      // Enhanced page name handling
+      const pageName = item.author_username as string || "Unknown";
+      const pageUrl = item.author_profile_url as string;
+      const pageAvatar = item.author_avatar as string;
 
       return {
         id: `fb-${item.post_id || index}-${Date.now()}`,
         topic: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
+        text,
         date: postDate,
         popularityScore,
-        keywords,
+        keywords: [params.keyword],
         relatedTopics: [pageName],
+        likes,
         comments,
         shares,
-        url: item.url as string,
-        text,
+        url: item.post_url as string,
         pageName,
         pageUrl,
+        pageAvatar,
         postId: item.post_id as string,
         type: item.type as string,
-        videoUrl,
-        videoThumbnail,
-        imageUrl,
-        time: postDate,
+        videoUrl: Array.isArray(item.video_list) ? item.video_list[0] as string : undefined,
+        videoThumbnail: Array.isArray(item.video_cover_image) ? item.video_cover_image[0] as string : undefined,
+        imageUrl: Array.isArray(item.image_list) ? item.image_list[0] as string : undefined,
+        viewCount: views,
+        playCount: plays
       };
     });
   }
 
-  // Generic transformation for other actors
+  // Default transformation for backwards compatibility
   return limitedData.map((item: Record<string, unknown>, index: number) => {
-    const text = (item.text as string) || (item.message as string) || "";
-    const postDate = (item.postDate as string) || 
-                    (item.date as string) || 
-                    new Date().toISOString();
+    const text = (item.text as string) || "";
+    const postDate = (item.date as string) || new Date().toISOString();
     const likes = typeof item.likesCount === "number" ? item.likesCount : 0;
     const comments = typeof item.commentsCount === "number" ? item.commentsCount : 0;
     const shares = typeof item.sharesCount === "number" ? item.sharesCount : 0;
     const popularityScore = likes + comments * 2 + shares * 3;
-    const extractedKeywords = text
-      .split(/\s+/)
-      .filter((word) => word.length > 4)
-      .slice(0, 5);
-    const keywords = [params.keyword, ...extractedKeywords].filter(
-      (v, i, a) => a.indexOf(v) === i
-    );
-
-    const authorName = (item.authorName as string) ||
-      ((item.pageInfo as Record<string, unknown>)?.name as string) ||
-      "Facebook User";
 
     return {
       id: `fb-${item.postId || item.postUrl || index}-${Date.now()}`,
       topic: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
+      text,
       date: postDate,
       popularityScore,
-      keywords,
-      relatedTopics: [authorName],
+      keywords: [params.keyword],
+      relatedTopics: [(item.authorName as string) || "Unknown"],
       likes,
       comments,
       shares,
       url: item.url as string,
-      text,
-      pageName: authorName,
+      pageName: item.authorName as string
     };
   });
 };
@@ -191,9 +179,12 @@ export const fetchTopics = async (
 
     // Make the appropriate API call based on environment
     const response = isProduction
-      ? await fetch(`${apiEndpoint}?token=${apiKey}`, {
+      ? await fetch(apiEndpoint, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
+          },
           body: JSON.stringify(runInput),
         })
       : await fetch("/api/apify", {
@@ -217,7 +208,12 @@ export const fetchTopics = async (
         console.error("Apify API error response:", JSON.stringify(errorData));
         throw new Error(`Apify API error: ${JSON.stringify(errorData)}`);
       } catch {
-        throw new Error(`Apify API error: ${response.status} - ${responseText.substring(0, 100)}`);
+        throw new Error(
+          `Apify API error: ${response.status} - ${responseText.substring(
+            0,
+            100
+          )}`
+        );
       }
     }
 

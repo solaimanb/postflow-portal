@@ -4,6 +4,7 @@ export interface TopicSearchParams {
   endDate?: string;
   maxItems?: number;
   language?: string;
+  filterByRecent?: boolean;
 }
 
 export interface Topic {
@@ -20,36 +21,34 @@ export interface Topic {
   shares?: number;
   url?: string;
   pageName?: string;
+  pageUrl?: string;
+  pageAvatar?: string;
   postId?: string;
   type?: string;
-  pageUrl?: string;
   videoUrl?: string;
   videoThumbnail?: string;
   imageUrl?: string;
+  viewCount?: number;
+  playCount?: number;
+  author_profile_url?: string;
+  author_avatar?: string;
 }
 
 export interface ActorRunInput {
-  query?: string;
+  search_type?: "posts" | "pages" | "people";
   keyword?: string;
-  search_type?: string;
-  max_posts?: number;
-  limit?: number;
-  maxResults?: number;
-  dateFrom?: string;
-  dateTo?: string;
-  language?: string;
-  startUrls?: { url: string }[];
-  maxPosts?: number;
-  commentsMode?: string;
-  reactionsMode?: string;
-  maxComments?: number;
-  maxPostDate?: string;
-  minPostDate?: string;
-  proxyConfiguration?: {
-    useApifyProxy: boolean;
-  };
-  searchQuery?: string;
-  startDate?: string;
-  endDate?: string;
-  maxItems?: number;
+  filter_by_recent_posts?: boolean;
+  results_limit?: number;
+  min_wait_time_in_sec?: number;
+  max_wait_time_in_sec?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  cookies?: any[];
+  start_date?: string;
+  end_date?: string;
+}
+
+export interface ActorRunOutput {
+  items: Topic[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  error?: any;
 }

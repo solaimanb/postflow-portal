@@ -203,7 +203,7 @@ export default function TopicSearchPage() {
           <TopicSearch
             onSearch={handleSearch}
             isLoading={isLoading}
-            initialValues={currentSearchParams}
+            initialValues={currentSearchParams || undefined}
           />
         </CardContent>
       </Card>
