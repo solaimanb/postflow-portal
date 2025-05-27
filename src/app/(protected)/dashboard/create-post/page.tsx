@@ -109,8 +109,8 @@ export default function CreatePostPage() {
     if (!user || !params.scheduledFor) return;
 
     try {
-      await createFacebookPost(user.email, {
-        id: "",
+      const newPost: FacebookPost = {
+        id: crypto.randomUUID(),
         content: params.content,
         pageIds: params.pageIds,
         authorId: user.email,
@@ -118,7 +118,15 @@ export default function CreatePostPage() {
         scheduledFor: params.scheduledFor,
         status: "scheduled",
         mediaUrls: params.mediaUrls,
-      });
+      };
+
+      const existingPostsJson = localStorage.getItem("scheduled_posts");
+      const existingPosts = existingPostsJson
+        ? JSON.parse(existingPostsJson)
+        : [];
+
+      const updatedPosts = [...existingPosts, newPost];
+      localStorage.setItem("scheduled_posts", JSON.stringify(updatedPosts));
 
       toast.success("Post scheduled", {
         description: `Post scheduled for ${new Date(

@@ -23,7 +23,9 @@ import type { CheckedState } from "@radix-ui/react-checkbox";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -35,6 +37,8 @@ import type { FacebookPage, PostScheduleParams } from "@/types";
 import Image from "next/image";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Clock as ClockIcon } from "lucide-react";
 
 interface PostFormProps {
   pages: FacebookPage[];
@@ -47,6 +51,14 @@ interface MediaUploadStatus {
   status: "pending" | "uploading" | "success" | "error";
   progress: number;
   errorMessage?: string;
+}
+
+// Add type definition for time groups
+interface TimeGroups {
+  Morning: string[];
+  Afternoon: string[];
+  Evening: string[];
+  Night: string[];
 }
 
 export default function PostForm({
@@ -272,20 +284,46 @@ export default function PostForm({
     setMediaUploadStatus({});
   };
 
-  // Generate time options in 15-minute intervals
-  const generateTimeOptions = () => {
-    const times: string[] = [];
+  // Generate time options in 15-minute intervals with better organization
+  const generateTimeOptions = (): TimeGroups => {
+    const timeGroups: TimeGroups = {
+      Morning: [],
+      Afternoon: [],
+      Evening: [],
+      Night: [],
+    };
+
     for (let hour = 0; hour < 24; hour++) {
       for (let minute = 0; minute < 60; minute += 15) {
-        const h = hour % 12 || 12; // Convert 0 to 12 for 12 AM
+        const h = hour % 12 || 12;
         const period = hour < 12 ? "AM" : "PM";
-        times.push(`${h}:${minute.toString().padStart(2, "0")} ${period}`);
+        const timeStr = `${h}:${minute.toString().padStart(2, "0")} ${period}`;
+
+        if (hour >= 5 && hour < 12) {
+          timeGroups["Morning"].push(timeStr);
+        } else if (hour >= 12 && hour < 17) {
+          timeGroups["Afternoon"].push(timeStr);
+        } else if (hour >= 17 && hour < 21) {
+          timeGroups["Evening"].push(timeStr);
+        } else {
+          timeGroups["Night"].push(timeStr);
+        }
       }
     }
-    return times;
+
+    return timeGroups;
   };
 
-  const timeOptions = generateTimeOptions();
+  const timeGroups = generateTimeOptions();
+
+  // Quick time slots for common posting times
+  const quickTimeSlots = [
+    { label: "Morning Post", time: "9:00 AM" },
+    { label: "Lunch Break", time: "12:00 PM" },
+    { label: "Afternoon", time: "3:00 PM" },
+    { label: "Evening", time: "6:00 PM" },
+    { label: "Night", time: "9:00 PM" },
+  ];
 
   return (
     <div className="space-y-8">
@@ -459,7 +497,31 @@ export default function PostForm({
           {/* Page Selection */}
           <div className="rounded-lg border bg-card p-4 space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-base font-semibold">Target Pages</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-base font-semibold">Target Pages</Label>
+                {pages.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="select-all"
+                      checked={
+                        pages.length > 0 &&
+                        selectedPageIds.length === pages.length
+                      }
+                      onCheckedChange={(checked: CheckedState) => {
+                        setSelectedPageIds(
+                          checked ? pages.map((page) => page.pageId) : []
+                        );
+                      }}
+                    />
+                    <Label
+                      htmlFor="select-all"
+                      className="text-sm text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                    >
+                      Select All
+                    </Label>
+                  </div>
+                )}
+              </div>
               <p className="text-sm text-muted-foreground">
                 Select the Facebook pages for this post.
               </p>
@@ -554,15 +616,67 @@ export default function PostForm({
               <div className="space-y-2">
                 <Label className="text-sm">Time</Label>
                 <Select value={selectedTime} onValueChange={setSelectedTime}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select time" />
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select time">
+                      {selectedTime ? (
+                        <div className="flex items-center gap-2">
+                          <ClockIcon className="h-4 w-4 text-muted-foreground" />
+                          <span>{selectedTime}</span>
+                        </div>
+                      ) : (
+                        <span>Select time</span>
+                      )}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {timeOptions.map((time) => (
-                      <SelectItem key={time} value={time}>
-                        {time}
-                      </SelectItem>
-                    ))}
+                    <ScrollArea className="h-80">
+                      {/* Quick Time Slots */}
+                      <SelectGroup>
+                        <SelectLabel className="text-xs font-semibold text-muted-foreground/70 px-2 py-1.5">
+                          Quick Select
+                        </SelectLabel>
+                        {quickTimeSlots.map((slot) => (
+                          <SelectItem
+                            key={slot.time}
+                            value={slot.time}
+                            className="flex items-center gap-2"
+                          >
+                            <div className="flex items-center gap-2">
+                              <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="font-medium">{slot.label}</span>
+                              <span className="text-xs text-muted-foreground">
+                                ({slot.time})
+                              </span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+
+                      <div className="h-px bg-border/50 my-2" />
+
+                      {/* Time Groups */}
+                      {(
+                        Object.entries(timeGroups) as [
+                          keyof TimeGroups,
+                          string[]
+                        ][]
+                      ).map(([group, times]) => (
+                        <SelectGroup key={group}>
+                          <SelectLabel className="text-xs font-semibold text-muted-foreground/70 px-2 py-1.5">
+                            {group}
+                          </SelectLabel>
+                          {times.map((time) => (
+                            <SelectItem
+                              key={time}
+                              value={time}
+                              className="flex items-center gap-2"
+                            >
+                              <span className="font-medium">{time}</span>
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ))}
+                    </ScrollArea>
                   </SelectContent>
                 </Select>
               </div>
