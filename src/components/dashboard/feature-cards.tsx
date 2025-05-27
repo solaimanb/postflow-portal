@@ -32,6 +32,7 @@ interface FeatureCardsProps {
   pagesCount: number;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function FeatureCards({ pagesCount }: FeatureCardsProps) {
   const featureCardsData: FeatureData[] = [
     {
@@ -94,10 +95,10 @@ export function FeatureCards({ pagesCount }: FeatureCardsProps) {
       description:
         "Configure and manage your Facebook page connections. Add, remove, and organize pages for streamlined social media management.",
       cost: { value: "FREE", label: "Cost" },
-      stats: {
-        label: "Connected pages",
-        value: pagesCount.toString(),
-      },
+      // stats: {
+      //   label: "Connected pages",
+      //   value: pagesCount.toString(),
+      // },
       features: [
         "Page authentication",
         "Connection management",
