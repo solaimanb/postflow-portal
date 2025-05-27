@@ -27,13 +27,22 @@ export const createPost = async (
 
     // Step 2: Handle media upload if present
     if (mediaItems?.length) {
-      return await createMediaPost(
-        pageId,
-        pageAccessToken,
-        content,
-        mediaItems[0],
-        callbacks
-      );
+      if (mediaItems.length === 1) {
+        return await createMediaPost(
+          pageId,
+          pageAccessToken,
+          content,
+          mediaItems[0],
+          callbacks
+        );
+      } else {
+        return await createMultiMediaPost(
+          pageId,
+          pageAccessToken,
+          content,
+          mediaItems
+        );
+      }
     }
 
     // Step 3: Create text-only post
@@ -125,6 +134,49 @@ async function attachMediaToPost(
   const params = new URLSearchParams();
   params.append("message", content);
   params.append("attached_media[0]", `{"media_fbid":"${mediaId}"}`);
+  params.append("access_token", pageAccessToken);
+
+  const response = await fetch(
+    `https://graph.facebook.com/v22.0/${pageId}/feed`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params,
+    }
+  );
+
+  await handleApiResponse(response);
+  const data = await response.json();
+  return data.id;
+}
+
+/**
+ * Creates a post with multiple media attachments
+ */
+async function createMultiMediaPost(
+  pageId: string,
+  pageAccessToken: string,
+  content: string,
+  mediaItems: (string | File)[]
+): Promise<string> {
+  // Upload all media items first
+  const mediaIds = await Promise.all(
+    mediaItems.map(async (item) => {
+      if (item instanceof File && item.type.startsWith("video/")) {
+        throw new Error("Multiple videos in a single post are not supported");
+      }
+      return await uploadMedia(pageId, pageAccessToken, item);
+    })
+  );
+
+  // Create the post with all media attachments
+  const params = new URLSearchParams();
+  params.append("message", content);
+  mediaIds.forEach((id, index) => {
+    params.append(`attached_media[${index}]`, `{"media_fbid":"${id}"}`);
+  });
   params.append("access_token", pageAccessToken);
 
   const response = await fetch(
