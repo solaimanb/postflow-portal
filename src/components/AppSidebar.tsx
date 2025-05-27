@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Search,
   PlusCircle,
@@ -11,7 +13,6 @@ import { usePathname } from "next/navigation";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
@@ -22,6 +23,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
+import { Separator } from "./ui/separator";
 
 interface AppSidebarProps {
   onLogout: () => void;
@@ -30,26 +32,45 @@ interface AppSidebarProps {
 export function AppSidebar({ onLogout }: AppSidebarProps) {
   const pathname = usePathname();
 
+  const getIconColor = (color: string) => {
+    switch (color) {
+      case "indigo":
+        return "text-indigo-600";
+      case "pink":
+        return "text-pink-600";
+      case "blue":
+        return "text-blue-600";
+      case "emerald":
+        return "text-emerald-600";
+      default:
+        return "text-gray-600";
+    }
+  };
+
   const menuItems = [
     {
       title: "Topic Search",
       icon: Search,
       href: "/dashboard/topic-search",
+      color: "indigo",
     },
     {
       title: "Create Post",
       icon: PlusCircle,
       href: "/dashboard/create-post",
+      color: "pink",
     },
     {
       title: "Manage Comments",
       icon: MessageSquare,
       href: "/dashboard/manage-comments",
+      color: "blue",
     },
     {
       title: "Page Setup",
       icon: LayoutGrid,
       href: "/dashboard/page-setup",
+      color: "emerald",
     },
   ];
 
@@ -57,13 +78,18 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
     <Sidebar collapsible="icon" className="border-r bg-sidebar">
       <SidebarHeader className="border-b border-sidebar-border">
         <div className="flex items-center px-2 py-2 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2 gap-1">
-          <GlobeLock className="shrink-0 group-data-[collapsible=icon]:hidden" />
-          <h2 className="text-xl font-black tracking-tight text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-            PORTAL
-          </h2>
+          <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
+            <div className="rounded-lg bg-blue-600 p-1">
+              <GlobeLock className="h-5 w-5 shrink-0 text-white" />
+            </div>
+            <h2 className="text-xl font-black tracking-tight text-sidebar-foreground group-data-[collapsible=icon]:hidden">
+              PORTAL
+            </h2>
+          </div>
           <SidebarTrigger className="ml-auto group-data-[collapsible=icon]:ml-0" />
         </div>
       </SidebarHeader>
+
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="group-data-[collapsible=icon]:hidden text-sidebar-foreground/70">
@@ -90,7 +116,12 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
                         pathname !== item.href && "border border-transparent"
                       )}
                     >
-                      <item.icon className="shrink-0" />
+                      <item.icon
+                        className={cn(
+                          "shrink-0",
+                          pathname !== item.href && getIconColor(item.color)
+                        )}
+                      />
                       <span className="group-data-[collapsible=icon]:hidden">
                         {item.title}
                       </span>
@@ -98,30 +129,28 @@ export function AppSidebar({ onLogout }: AppSidebarProps) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-      <SidebarFooter className="border-t border-sidebar-border px-2 py-0">
-        <SidebarGroup>
-          <SidebarGroupContent>
-            <SidebarMenu>
+
+              <Separator className="my-2" />
+
+              {/* Sign Out Button */}
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={onLogout}
-                  className="w-full justify-start gap-4 px-2 text-destructive hover:bg-destructive/10 group-data-[collapsible=icon]:justify-center"
+                  className="w-full justify-start gap-4 px-2 text-red-400 hover:bg-red-50 hover:text-red-500 group-data-[collapsible=icon]:justify-center"
                   tooltip="Sign Out"
                 >
-                  <LogOut className="h-4 w-4 shrink-0" />
-                  <span className="group-data-[collapsible=icon]:hidden">
-                    Sign Out
-                  </span>
+                  <div className="py-2 font-medium flex items-center gap-4">
+                    <LogOut className="h-4 w-4 shrink-0 text-blue-600" />
+                    <span className="group-data-[collapsible=icon]:hidden">
+                      Sign Out
+                    </span>
+                  </div>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-      </SidebarFooter>
+      </SidebarContent>
     </Sidebar>
   );
 }
