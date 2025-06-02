@@ -11,6 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Plus,
   Trash2,
@@ -134,10 +135,10 @@ export function AddCommentForm({ onCommentSaved }: AddCommentFormProps) {
       }
     } catch (error) {
       console.error("Error saving comments:", error);
-      toast.error("Failed to save comments. Please try again.");
+      toast.error("Failed to post comments. Please try again.");
 
       if (onCommentSaved) {
-        onCommentSaved(false, "Failed to save comments");
+        onCommentSaved(false, "Failed to post comments");
       }
     } finally {
       setLoading(false);
@@ -205,24 +206,26 @@ export function AddCommentForm({ onCommentSaved }: AddCommentFormProps) {
                 <MessageCircle className="h-4 w-4" />
                 Add New Comment
               </Label>
-              <div className="flex gap-2">
-                <Input
+              <div className="flex flex-col gap-2">
+                <Textarea
                   id="comment"
                   value={currentComment}
                   onChange={(e) => setCurrentComment(e.target.value)}
                   onKeyDown={handleKeyPress}
                   placeholder="Type a comment and press Enter or click Add"
-                  className="flex-1"
+                  className="min-h-[100px] resize-y"
                 />
-                <Button
-                  type="button"
-                  onClick={handleAddComment}
-                  variant="secondary"
-                  className="shrink-0"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add
-                </Button>
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    onClick={handleAddComment}
+                    variant="secondary"
+                    className="shrink-0"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Comment
+                  </Button>
+                </div>
               </div>
               <p className="text-sm text-muted-foreground">
                 Press Enter to quickly add a comment
@@ -244,41 +247,43 @@ export function AddCommentForm({ onCommentSaved }: AddCommentFormProps) {
                       comments.map((comment, index) => (
                         <div
                           key={index}
-                          className="flex items-center justify-between p-3 rounded-md bg-muted/50 group hover:bg-muted/70 transition-colors"
+                          className="group hover:bg-muted/70 transition-colors rounded-md bg-muted/50"
                         >
-                          <span className="text-sm flex-1 mr-4">{comment}</span>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="text-destructive hover:text-destructive/90 opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>
-                                  Delete Comment
-                                </AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete this comment?
-                                  This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => handleRemoveComment(index)}
-                                  className="bg-destructive hover:bg-destructive/90"
+                          <div className="flex items-start justify-between p-3">
+                            <pre className="text-sm flex-1 mr-4 font-sans whitespace-pre-wrap break-words">{comment}</pre>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive/90 opacity-0 group-hover:opacity-100 transition-opacity mt-1"
                                 >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>
+                                    Delete Comment
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Are you sure you want to delete this comment?
+                                    This action cannot be undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleRemoveComment(index)}
+                                    className="bg-destructive hover:bg-destructive/90"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
                         </div>
                       ))
                     )}
@@ -329,7 +334,7 @@ export function AddCommentForm({ onCommentSaved }: AddCommentFormProps) {
                 "Saving..."
               ) : (
                 <>
-                  Save Comments
+                  Post Comments
                   <span className="ml-2 text-xs text-muted">
                     ({comments.length})
                   </span>

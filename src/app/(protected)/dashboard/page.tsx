@@ -90,7 +90,7 @@ export default function DashboardPage() {
       {
         label: "Current Bill",
         value: dashboardData.stats.currentBill.amount.toString(),
-        prefix: "$",
+        prefix: "৳",
         badge: {
           text: "Bills monthly",
           color: "green",

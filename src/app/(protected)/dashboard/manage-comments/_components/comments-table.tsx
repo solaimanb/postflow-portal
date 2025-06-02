@@ -449,17 +449,15 @@ export function CommentsTable() {
                                 {item.comments.map((comment, index) => (
                                   <div
                                     key={index}
-                                    className="flex items-center justify-between p-3 rounded-lg bg-background border gap-4 group/comment hover:shadow-sm transition-shadow"
+                                    className="flex items-start justify-between p-3 rounded-lg bg-background border gap-4 group/comment hover:shadow-sm transition-shadow"
                                   >
-                                    <span className="text-sm flex-1">
-                                      {comment}
-                                    </span>
+                                    <pre className="text-sm flex-1 font-sans whitespace-pre-wrap break-words leading-relaxed">{comment}</pre>
                                     <AlertDialog>
                                       <AlertDialogTrigger asChild>
                                         <Button
                                           variant="ghost"
                                           size="sm"
-                                          className="h-8 w-8 p-0 opacity-0 group-hover/comment:opacity-100 transition-opacity text-destructive hover:text-destructive/90"
+                                          className="h-8 w-8 p-0 opacity-0 group-hover/comment:opacity-100 transition-opacity text-destructive hover:text-destructive/90 mt-1"
                                           disabled={isDeleting}
                                         >
                                           <Trash2 className="h-4 w-4" />
