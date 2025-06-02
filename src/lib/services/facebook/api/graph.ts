@@ -104,7 +104,7 @@ async function createTextPost(
   const params = new URLSearchParams();
   params.append("message", content);
   params.append("access_token", pageAccessToken);
-
+  
   const response = await fetch(
     `https://graph.facebook.com/v22.0/${pageId}/feed`,
     {
@@ -118,7 +118,8 @@ async function createTextPost(
 
   await handleApiResponse(response);
   const data = await response.json();
-  console.log("Post created successfully");
+  console.log("Post created successfully with ID:", data.id);
+  console.log("Post URL:", `https://facebook.com/${data.id}`);
   return data.id;
 }
 
@@ -134,7 +135,7 @@ async function attachMediaToPost(
   const params = new URLSearchParams();
   params.append("message", content);
   params.append("attached_media[0]", `{"media_fbid":"${mediaId}"}`);
-  params.append("access_token", pageAccessToken);
+  params.append("access_token", pageAccessToken); 
 
   const response = await fetch(
     `https://graph.facebook.com/v22.0/${pageId}/feed`,
@@ -149,6 +150,8 @@ async function attachMediaToPost(
 
   await handleApiResponse(response);
   const data = await response.json();
+  console.log("Media post created successfully with ID:", data.id);
+  console.log("Post URL:", `https://facebook.com/${data.id}`);
   return data.id;
 }
 
@@ -217,6 +220,14 @@ async function handleApiResponse(response: Response): Promise<void> {
       case 368:
         throw new Error(
           "Rate limit exceeded. Please wait a few minutes and try again."
+        );
+      case 200:
+        throw new Error(
+          "Permission error: The user must be an admin of the page to post."
+        );
+      case 294:
+        throw new Error(
+          "Post visibility error: The post might be restricted. Check page settings."
         );
       default:
         throw new Error(
